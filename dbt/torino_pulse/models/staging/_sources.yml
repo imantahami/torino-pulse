@@ -5,6 +5,7 @@ sources:
     schema: public
     tables:
       - name: raw_vehicle_positions
+      - name: raw_weather
 
 models:
   - name: stg_vehicle_positions
@@ -23,5 +24,17 @@ models:
         tests:
           - not_null
       - name: longitude
+        tests:
+          - not_null
+
+  - name: stg_weather
+    description: "Deduplicated weather observations for Turin from Open-Meteo, keeping the latest fetch per observation time"
+    columns:
+      - name: observed_at
+        description: "Timestamp of the weather observation"
+        tests:
+          - unique
+          - not_null
+      - name: temperature_c
         tests:
           - not_null
