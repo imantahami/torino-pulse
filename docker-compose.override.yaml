@@ -1,0 +1,20 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  airflow-scheduler:
+    environment:
+      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests
+
+  airflow-webserver:
+    environment:
+      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests
+
+  airflow-worker:
+    environment:
+      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests
+
+  airflow-triggerer:
+    environment:
+      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests
