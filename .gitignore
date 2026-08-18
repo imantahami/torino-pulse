@@ -1,3 +1,5 @@
 .venv/
 .vincent/
 logs/
+__pycache__/
+*.pyc
