@@ -5,16 +5,24 @@ services:
 
   airflow-scheduler:
     environment:
-      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests
+      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests dbt-core==1.8.2 dbt-postgres==1.8.2
+    volumes:
+      - ./dbt:/opt/airflow/dbt
 
   airflow-webserver:
     environment:
-      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests
+      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests dbt-core==1.8.2 dbt-postgres==1.8.2
+    volumes:
+      - ./dbt:/opt/airflow/dbt
 
   airflow-worker:
     environment:
-      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests
+      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests dbt-core==1.8.2 dbt-postgres==1.8.2
+    volumes:
+      - ./dbt:/opt/airflow/dbt
 
   airflow-triggerer:
     environment:
-      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests
+      _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests dbt-core==1.8.2 dbt-postgres==1.8.2
+    volumes:
+      - ./dbt:/opt/airflow/dbt

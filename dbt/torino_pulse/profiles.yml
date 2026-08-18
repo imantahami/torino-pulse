@@ -1,0 +1,12 @@
+torino_pulse:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: postgres
+      port: 5432
+      user: airflow
+      password: airflow
+      dbname: torino_pulse
+      schema: public
+      threads: 4
