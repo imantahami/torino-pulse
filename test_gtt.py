@@ -1,53 +1,34 @@
 import requests
-import psycopg2
-from datetime import datetime
 from google.transit import gtfs_realtime_pb2
 
-# Connect to Postgres
-conn = psycopg2.connect(
-    host="localhost",
-    port=5432,
-    dbname="torino_pulse",
-    user="airflow",
-    password="airflow"
-)
-cur = conn.cursor()
+# --- Vehicle Positions ---
+print("=" * 50)
+print("VEHICLE POSITIONS")
+print("=" * 50)
 
-# Create table if it doesn't exist
-cur.execute("""
-    CREATE TABLE IF NOT EXISTS raw_vehicle_positions (
-        id SERIAL PRIMARY KEY,
-        vehicle_id TEXT,
-        latitude FLOAT,
-        longitude FLOAT,
-        fetched_at TIMESTAMP
-    )
-""")
-conn.commit()
-
-# Fetch live data from GTT
-url = "https://percorsieorari.gtt.to.it/das_gtfsrt/vehicle_position.aspx"
-response = requests.get(url)
+url_vp = "https://percorsieorari.gtt.to.it/das_gtfsrt/vehicle_position.aspx"
+response = requests.get(url_vp)
 feed = gtfs_realtime_pb2.FeedMessage()
 feed.ParseFromString(response.content)
 
-fetched_at = datetime.now()
-count = 0
+print(f"Total entities: {len(feed.entity)}\n")
 
-for entity in feed.entity:
-    if entity.HasField('vehicle'):
-        vehicle_id = entity.vehicle.vehicle.id
-        lat = entity.vehicle.position.latitude
-        lon = entity.vehicle.position.longitude
+for entity in feed.entity[:3]:
+    print("--- Entity ---")
+    print(entity)
 
-        cur.execute("""
-            INSERT INTO raw_vehicle_positions (vehicle_id, latitude, longitude, fetched_at)
-            VALUES (%s, %s, %s, %s)
-        """, (vehicle_id, lat, lon, fetched_at))
-        count += 1
+# --- Trip Updates ---
+print("\n" + "=" * 50)
+print("TRIP UPDATES")
+print("=" * 50)
 
-conn.commit()
-print(f"Inserted {count} rows into raw_vehicle_positions")
+url_tu = "https://percorsieorari.gtt.to.it/das_gtfsrt/trip_update.aspx"
+response_tu = requests.get(url_tu)
+feed_tu = gtfs_realtime_pb2.FeedMessage()
+feed_tu.ParseFromString(response_tu.content)
 
-cur.close()
-conn.close()
+print(f"Total entities: {len(feed_tu.entity)}\n")
+
+for entity in feed_tu.entity[:2]:
+    print("--- Entity ---")
+    print(entity)

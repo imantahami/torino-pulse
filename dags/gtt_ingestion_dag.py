@@ -20,11 +20,31 @@ def fetch_and_store_vehicle_positions():
         CREATE TABLE IF NOT EXISTS raw_vehicle_positions (
             id SERIAL PRIMARY KEY,
             vehicle_id TEXT,
+            vehicle_label TEXT,
+            route_id TEXT,
+            trip_id TEXT,
+            trip_start_time TEXT,
+            trip_start_date TEXT,
             latitude FLOAT,
             longitude FLOAT,
+            bearing FLOAT,
+            gps_timestamp BIGINT,
             fetched_at TIMESTAMP
         )
     """)
+
+    # Add new columns if table already exists from previous version
+    for col, coltype in [
+        ("vehicle_label", "TEXT"),
+        ("route_id", "TEXT"),
+        ("trip_id", "TEXT"),
+        ("trip_start_time", "TEXT"),
+        ("trip_start_date", "TEXT"),
+        ("bearing", "FLOAT"),
+        ("gps_timestamp", "BIGINT"),
+    ]:
+        cur.execute(f"ALTER TABLE raw_vehicle_positions ADD COLUMN IF NOT EXISTS {col} {coltype}")
+
     conn.commit()
 
     url = "https://percorsieorari.gtt.to.it/das_gtfsrt/vehicle_position.aspx"
@@ -37,14 +57,26 @@ def fetch_and_store_vehicle_positions():
 
     for entity in feed.entity:
         if entity.HasField('vehicle'):
-            vehicle_id = entity.vehicle.vehicle.id
-            lat = entity.vehicle.position.latitude
-            lon = entity.vehicle.position.longitude
+            v = entity.vehicle
 
             cur.execute("""
-                INSERT INTO raw_vehicle_positions (vehicle_id, latitude, longitude, fetched_at)
-                VALUES (%s, %s, %s, %s)
-            """, (vehicle_id, lat, lon, fetched_at))
+                INSERT INTO raw_vehicle_positions
+                (vehicle_id, vehicle_label, route_id, trip_id, trip_start_time,
+                 trip_start_date, latitude, longitude, bearing, gps_timestamp, fetched_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                v.vehicle.id,
+                v.vehicle.label,
+                v.trip.route_id,
+                v.trip.trip_id,
+                v.trip.start_time,
+                v.trip.start_date,
+                v.position.latitude,
+                v.position.longitude,
+                v.position.bearing,
+                v.timestamp,
+                fetched_at
+            ))
             count += 1
 
     conn.commit()
