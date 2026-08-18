@@ -1,34 +1,31 @@
 import requests
-from google.transit import gtfs_realtime_pb2
+import zipfile
+import io
 
-# --- Vehicle Positions ---
-print("=" * 50)
-print("VEHICLE POSITIONS")
-print("=" * 50)
+url = "https://www.gtt.to.it/open_data/gtt_gtfs.zip"
+print("Downloading...")
+response = requests.get(url)
+print("Status:", response.status_code)
+print("Size:", len(response.content) / 1024 / 1024, "MB")
 
-url_vp = "https://percorsieorari.gtt.to.it/das_gtfsrt/vehicle_position.aspx"
-response = requests.get(url_vp)
-feed = gtfs_realtime_pb2.FeedMessage()
-feed.ParseFromString(response.content)
+z = zipfile.ZipFile(io.BytesIO(response.content))
+print("\nFiles inside:")
+for name in z.namelist():
+    info = z.getinfo(name)
+    print(f"  {name}  ({info.file_size / 1024:.1f} KB)")
 
-print(f"Total entities: {len(feed.entity)}\n")
+# Preview routes.txt
+print("\n--- routes.txt (first 5 lines) ---")
+with z.open('routes.txt') as f:
+    for i, line in enumerate(f):
+        if i >= 5:
+            break
+        print(line.decode('utf-8', errors='replace').strip())
 
-for entity in feed.entity[:3]:
-    print("--- Entity ---")
-    print(entity)
-
-# --- Trip Updates ---
-print("\n" + "=" * 50)
-print("TRIP UPDATES")
-print("=" * 50)
-
-url_tu = "https://percorsieorari.gtt.to.it/das_gtfsrt/trip_update.aspx"
-response_tu = requests.get(url_tu)
-feed_tu = gtfs_realtime_pb2.FeedMessage()
-feed_tu.ParseFromString(response_tu.content)
-
-print(f"Total entities: {len(feed_tu.entity)}\n")
-
-for entity in feed_tu.entity[:2]:
-    print("--- Entity ---")
-    print(entity)
+# Preview stops.txt
+print("\n--- stops.txt (first 5 lines) ---")
+with z.open('stops.txt') as f:
+    for i, line in enumerate(f):
+        if i >= 5:
+            break
+        print(line.decode('utf-8', errors='replace').strip())
