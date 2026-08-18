@@ -1,0 +1,27 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: public
+    tables:
+      - name: raw_vehicle_positions
+
+models:
+  - name: stg_vehicle_positions
+    description: "Cleaned vehicle position data from GTT, filtered to remove invalid (0,0) coordinates"
+    columns:
+      - name: id
+        description: "Primary key"
+        tests:
+          - unique
+          - not_null
+      - name: vehicle_id
+        description: "GTT vehicle identifier"
+        tests:
+          - not_null
+      - name: latitude
+        tests:
+          - not_null
+      - name: longitude
+        tests:
+          - not_null
