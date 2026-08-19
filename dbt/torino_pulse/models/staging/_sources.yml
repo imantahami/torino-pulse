@@ -5,36 +5,40 @@ sources:
     schema: public
     tables:
       - name: raw_vehicle_positions
+      - name: raw_trip_updates
+      - name: raw_alerts
       - name: raw_weather
+      - name: gtfs_routes
+      - name: gtfs_stops
+      - name: gtfs_trips
+      - name: gtfs_agency
+      - name: gtfs_calendar
 
 models:
   - name: stg_vehicle_positions
-    description: "Cleaned vehicle position data from GTT, filtered to remove invalid (0,0) coordinates"
+    description: "Vehicle position snapshots from GTT, with invalid (0,0) GPS coordinates removed."
     columns:
       - name: id
-        description: "Primary key"
-        tests:
-          - unique
-          - not_null
+        description: "Primary key from the raw table."
+        tests: [unique, not_null]
       - name: vehicle_id
-        description: "GTT vehicle identifier"
-        tests:
-          - not_null
+        tests: [not_null]
       - name: latitude
-        tests:
-          - not_null
+        tests: [not_null]
       - name: longitude
-        tests:
-          - not_null
+        tests: [not_null]
 
   - name: stg_weather
-    description: "Deduplicated weather observations for Turin from Open-Meteo, keeping the latest fetch per observation time"
+    description: "Turin weather observations from Open-Meteo, deduplicated to the most recent fetch per observation time."
     columns:
       - name: observed_at
-        description: "Timestamp of the weather observation"
-        tests:
-          - unique
-          - not_null
+        description: "Observation timestamp reported by the API. Unique after deduplication."
+        tests: [unique, not_null]
       - name: temperature_c
-        tests:
-          - not_null
+        tests: [not_null]
+
+  - name: stg_trip_updates
+    description: >
+      Stop-level delay predictions. Every observation is kept, not deduplicated —
+      filter on is_latest_observation for the final prediction per trip/stop,
+      or use delay_change_seconds to study how
