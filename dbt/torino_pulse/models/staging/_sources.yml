@@ -39,11 +39,15 @@ models:
 
   - name: stg_trip_updates
     description: >
-      Stop-level delay predictions. Every observation is kept, not deduplicated —
+      Stop-level delay predictions, enriched with route_id resolved from static GTFS
+      (the realtime feed leaves it empty). Every observation is kept, not deduplicated —
       filter on is_latest_observation for the final prediction per trip/stop,
       or use delay_change_seconds to study how predictions drift over time.
     columns:
       - name: trip_id
+        data_tests: [not_null]
+      - name: route_id
+        description: "Resolved via join to gtfs_trips. Null would mean an unmatched trip."
         data_tests: [not_null]
       - name: stop_sequence
         data_tests: [not_null]
