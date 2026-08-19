@@ -1,6 +1,6 @@
 x-common-env: &common-env
   AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-  _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests dbt-core==1.8.2 dbt-postgres==1.8.2
+  _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests dbt-core==1.8.2 dbt-postgres==1.8.2 redis==4.6.0
 
 services:
   postgres:
