@@ -20,25 +20,73 @@ models:
     columns:
       - name: id
         description: "Primary key from the raw table."
-        tests: [unique, not_null]
+        data_tests: [unique, not_null]
       - name: vehicle_id
-        tests: [not_null]
+        data_tests: [not_null]
       - name: latitude
-        tests: [not_null]
+        data_tests: [not_null]
       - name: longitude
-        tests: [not_null]
+        data_tests: [not_null]
 
   - name: stg_weather
     description: "Turin weather observations from Open-Meteo, deduplicated to the most recent fetch per observation time."
     columns:
       - name: observed_at
         description: "Observation timestamp reported by the API. Unique after deduplication."
-        tests: [unique, not_null]
+        data_tests: [unique, not_null]
       - name: temperature_c
-        tests: [not_null]
+        data_tests: [not_null]
 
   - name: stg_trip_updates
     description: >
       Stop-level delay predictions. Every observation is kept, not deduplicated —
       filter on is_latest_observation for the final prediction per trip/stop,
-      or use delay_change_seconds to study how
+      or use delay_change_seconds to study how predictions drift over time.
+    columns:
+      - name: trip_id
+        data_tests: [not_null]
+      - name: stop_sequence
+        data_tests: [not_null]
+      - name: is_latest_observation
+        data_tests: [not_null]
+      - name: observation_number
+        data_tests: [not_null]
+
+  - name: stg_alerts
+    description: >
+      Service alerts collapsed to one row per (alert, affected entity),
+      with first_seen_at / last_seen_at describing the observation window.
+    columns:
+      - name: alert_id
+        data_tests: [not_null]
+      - name: entity_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['route', 'stop', 'trip', 'unknown']
+      - name: effect
+        data_tests: [not_null]
+
+  - name: stg_routes
+    description: "GTT route reference data with human-readable names and derived mode/service-area classification."
+    columns:
+      - name: route_id
+        data_tests: [unique, not_null]
+      - name: route_short_name
+        data_tests: [not_null]
+      - name: route_mode
+        data_tests:
+          - accepted_values:
+              values: ['tram', 'metro', 'rail', 'bus', 'ferry', 'cable_tram', 'aerial_lift', 'funicular', 'other']
+
+  - name: stg_stops
+    description: "GTT stop reference data, filtered to stops with valid coordinates."
+    columns:
+      - name: stop_id
+        data_tests: [unique, not_null]
+      - name: stop_name
+        data_tests: [not_null]
+      - name: latitude
+        data_tests: [not_null]
+      - name: longitude
+        data_tests: [not_null]
