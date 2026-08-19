@@ -28,8 +28,14 @@ GTFS_URL = "https://www.gtt.to.it/open_data/gtt_gtfs.zip"
 
 
 def _create_table_from_header(cur, table_name, columns):
-    """Recreate a table with one TEXT column per CSV header field."""
-    cur.execute(f"DROP TABLE IF EXISTS {table_name}")
+    """
+    Recreate a table with one TEXT column per CSV header field.
+
+    CASCADE is required because dbt staging views (stg_routes, stg_stops, ...)
+    are built on top of these tables. Those views are recreated by the next
+    dbt run, so dropping them here is safe.
+    """
+    cur.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
     col_defs = ", ".join([f'"{c}" TEXT' for c in columns])
     cur.execute(f"CREATE TABLE {table_name} ({col_defs}, loaded_at TIMESTAMP)")
 
@@ -48,7 +54,7 @@ def load_static_gtfs():
     cur = conn.cursor()
     loaded_at = datetime.now()
 
-    # --- Small files: readable, row-by-row, fine at this size ---
+    # --- Small files: row-by-row is fine at this size ---
     for filename, table_name in FILES_TO_LOAD.items():
         if filename not in archive.namelist():
             print(f"Skipping {filename} (not in archive)")
@@ -77,7 +83,7 @@ def load_static_gtfs():
             conn.commit()
             print(f"Loaded {rows} rows into {table_name}")
 
-    # --- Large files: COPY straight from the stream ---
+    # --- Large files: COPY straight from the zip stream ---
     # Row-by-row INSERT on stop_times (~1.5M rows) takes tens of minutes.
     # COPY finishes in seconds because it bypasses the statement planner.
     for filename, table_name in LARGE_FILES.items():
