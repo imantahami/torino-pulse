@@ -2,6 +2,10 @@ x-common-env: &common-env
   AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
   _PIP_ADDITIONAL_REQUIREMENTS: gtfs-realtime-bindings psycopg2-binary requests dbt-core==1.8.2 dbt-postgres==1.8.2 redis==4.6.0
 
+x-common-volumes: &common-volumes
+  - ./dbt:/opt/airflow/dbt
+  - ./scripts:/opt/airflow/scripts
+
 services:
   postgres:
     ports:
@@ -14,27 +18,23 @@ services:
   airflow-scheduler:
     environment:
       <<: *common-env
-    volumes:
-      - ./dbt:/opt/airflow/dbt
+    volumes: *common-volumes
     restart: unless-stopped
 
   airflow-webserver:
     environment:
       <<: *common-env
-    volumes:
-      - ./dbt:/opt/airflow/dbt
+    volumes: *common-volumes
     restart: unless-stopped
 
   airflow-worker:
     environment:
       <<: *common-env
-    volumes:
-      - ./dbt:/opt/airflow/dbt
+    volumes: *common-volumes
     restart: unless-stopped
 
   airflow-triggerer:
     environment:
       <<: *common-env
-    volumes:
-      - ./dbt:/opt/airflow/dbt
+    volumes: *common-volumes
     restart: unless-stopped
