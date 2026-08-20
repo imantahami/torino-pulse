@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: fct_route_performance
+    description: >
+      One row per route. Punctuality metrics computed only from observations
+      that carry real delay data — see the model header for the three filters
+      and the evidence behind each.
+    columns:
+      - name: route_id
+        data_tests: [unique, not_null]
+      - name: route_short_name
+        data_tests: [not_null]
+      - name: observations
+        description: "Number of stop-level observations behind this row. Low counts mean low confidence."
+        data_tests: [not_null]
+      - name: median_delay_seconds
+        description: "Preferred over the mean: delay distributions are wide and skewed."
+        data_tests: [not_null]
+
+  - name: fct_hourly_service
+    description: >
+      One row per local hour, combining fleet size, delay, and weather.
+      Check is_sparse_hour before drawing conclusions from any single hour.
+    columns:
+      - name: hour_bucket
+        data_tests: [unique, not_null]
+      - name: active_vehicles
+        data_tests: [not_null]
+      - name: local_hour
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
+              quote: false
+
+  - name: fct_alert_impact
+    description: >
+      One row per (route, alert). A route with several concurrent alerts
+      appears once per alert.
+    columns:
+      - name: route_id
+        data_tests: [not_null]
+      - name: alert_id
+        data_tests: [not_null]
+      - name: effect
+        data_tests: [not_null]
