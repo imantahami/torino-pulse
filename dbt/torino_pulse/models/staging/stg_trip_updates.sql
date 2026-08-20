@@ -4,7 +4,6 @@ with base as (
 
         -- The realtime feed leaves route_id empty on trip updates,
         -- so we resolve it from the static GTFS trips table.
-        -- Coverage is 100% as of the last check.
         t.route_id,
         t.direction_id,
         t.trip_headsign,
@@ -89,16 +88,11 @@ select
     arrival_delay_seconds - previous_delay_seconds as delay_change_seconds,
     arrival_delay_seconds - first_delay_seconds    as delay_drift_seconds,
 
+    -- The first stop of a trip always reports zero delay because the
+    -- vehicle has not departed yet. Excluding it avoids diluting averages.
+    (stop_sequence > 1) as is_en_route,
+
     observation_number,
     total_observations,
     recency_rank,
-    recency_rank = 1 as is_latest_observation,
-
-    gps_reported_at,
-    fetched_at,
-
-    date_trunc('hour', fetched_at) as fetched_hour_utc,
-    extract(hour from fetched_at + interval '2 hours') as local_hour,
-    extract(dow  from fetched_at + interval '2 hours') as local_day_of_week
-
-from flagged
+    recency_rank = 1 as
