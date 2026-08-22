@@ -6,7 +6,7 @@ import streamlit as st
 from openai import OpenAI
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv("/home/ubuntu/streamlit-agent/.env")
 
 # ── Config ──────────────────────────────────────────────
 METABASE_URL = os.getenv("METABASE_URL")
@@ -108,10 +108,10 @@ def ask_ai(user_request: str, schema: str) -> dict:
     client = OpenAI(
         base_url="https://integrate.api.nvidia.com/v1",
         api_key=NVIDIA_KEY,
-        timeout=30.0
+        timeout=120.0
     )
     resp = client.chat.completions.create(
-        model="meta/llama-3.1-70b-instruct",
+        model="meta/llama-3.1-8b-instruct",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT.format(schema=schema)},
             {"role": "user",   "content": user_request}
