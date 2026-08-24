@@ -117,15 +117,13 @@ The three filters that make delay numbers meaningful live in `fct_route_performa
 
 ---
 
-## Visualization layer
-
-### Metabase
-Live dashboards at `http://84.8.253.68:3000`. Connected directly to Postgres inside the Docker network.
-
 ### AI Chart Builder (Streamlit)
 Live at `http://84.8.253.68:8501`. Describe what you want to see in plain English; the app uses NVIDIA Llama 3.1-8B to write the SQL and creates the chart directly in Metabase via API.
 
 Source: `streamlit-agent/app.py`. Runs as a systemd service (`streamlit.service`) so it restarts automatically.
+
+### Metabase
+Dashboards connected directly to Postgres inside the Docker network. Not publicly exposed — access is available on request.
 
 ### Power BI Desktop
 DirectQuery mode via SSH tunnel from a local machine:
