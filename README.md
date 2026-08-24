@@ -5,10 +5,7 @@ An end-to-end data pipeline that ingests live public transit and weather data fo
 Runs 24/7 on Oracle Cloud Always Free (ARM64, Turin region). Six Airflow DAGs, four data sources, Postgres storage, nine dbt models with 39 data quality tests, and an AI-powered chart builder.
 
 **Live:**
-- Airflow UI: `http://84.8.253.68:8080` (airflow / airflow)
-- Metabase dashboards: `http://84.8.253.68:3000`
-- AI Chart Builder: `http://84.8.253.68:8501`
-
+- AI Chart Builder: http://84.8.253.68:8501 — describe what you want to see in plain English
 ---
 
 ## Why this exists
