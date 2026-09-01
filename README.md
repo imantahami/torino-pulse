@@ -1,11 +1,13 @@
 # Torino Pulse
 
-An end-to-end data pipeline that ingests live public transit and weather data for Turin, Italy, transforms it into a queryable analytics layer, and exposes it through three live interfaces.
+A production data pipeline that continuously ingests live public transit and weather data for Turin, Italy, transforms it through a layered dbt model, and exposes findings through live dashboards.
 
-Runs 24/7 on Oracle Cloud Always Free (ARM64, Turin region). Six Airflow DAGs, four data sources, Postgres storage, nine dbt models with 39 data quality tests, and an AI-powered chart builder.
+Data has been collecting since **19 August 2026** and updates every 5–15 minutes around the clock.
 
 **Live:**
-- AI Chart Builder: http://84.8.253.68:8501 — describe what you want to see in plain English
+- Metabase dashboard: `http://84.8.253.68:3000`
+- Airflow UI: `http://84.8.253.68:8080` (airflow / airflow)
+
 ---
 
 ## Why this exists
@@ -65,13 +67,11 @@ The interesting problems here are not the happy path. They are the ones document
               │  39 data quality tests  │
               └────────────┬────────────┘
                            │
-         ┌─────────────────┼─────────────────┐
-         ▼                 ▼                 ▼
-   ┌───────────┐    ┌───────────┐    ┌───────────────┐
-   │  Metabase │    │  Power BI │    │  Streamlit    │
-   │  :3000    │    │ (SSH      │    │  AI Chart     │
-   │           │    │  tunnel)  │    │  Builder :8501│
-   └───────────┘    └───────────┘    └───────────────┘
+              ┌────────────▼────────────┐
+              │  Metabase               │
+              │  Live dashboards        │
+              │  :3000                  │
+              └─────────────────────────┘
 ```
 
 Everything runs in Docker Compose on one Oracle Cloud VM.Standard.A1.Flex (2 OCPU ARM64, 12 GB RAM, 100 GB disk) in the Italy North (Turin) region — permanently free.
@@ -84,11 +84,11 @@ Everything runs in Docker Compose on one Oracle Cloud VM.Standard.A1.Flex (2 OCP
 |---|---|---|---|
 | `vehicle_position.aspx` | GTFS-RT protobuf | 5 min | Vehicle ID, route, trip, lat/lon, bearing, GPS timestamp |
 | `trip_update.aspx` | GTFS-RT protobuf | 5 min | Per-stop arrival delay in seconds, license plate, wheelchair accessibility |
-| `alerts.aspx` | GTFS-RT protobuf | 15 min | Service disruptions: cause, effect, severity, affected routes and stops, Italian description |
-| `gtt_gtfs.zip` | GTFS static | daily | 204 routes, 6,894 stops, 38,824 trips, 1.1M stop_times, service calendar |
+| `alerts.aspx` | GTFS-RT protobuf | 15 min | Service disruptions: cause, effect, severity, affected routes and stops |
+| `gtt_gtfs.zip` | GTFS static | daily | 204 routes, 6,894 stops, 38,824 trips, 1.1M stop_times |
 | Open-Meteo | JSON | 15 min | Temperature, precipitation, wind speed, WMO weather code |
 
-No API keys required. The realtime feeds carry fewer fields than the GTFS-RT spec allows — `current_status`, `occupancy_status`, `congestion_level`, and `stop_id` on trip updates are all absent from GTT's output. Everything GTT does publish is stored.
+No API keys required. The realtime feeds carry fewer fields than the GTFS-RT spec allows — `current_status`, `occupancy_status`, and `congestion_level` are all absent from GTT's output. Everything GTT does publish is stored.
 
 ---
 
@@ -113,36 +113,12 @@ No API keys required. The realtime feeds carry fewer fields than the GTFS-RT spe
 | `fct_hourly_service` | one row per local hour | Fleet size + delay + weather, joined |
 | `fct_alert_impact` | one row per (route, alert) | Which lines are disrupted and how |
 
-The three filters that make delay numbers meaningful live in `fct_route_performance`, not in the BI tool. Power BI and Metabase read the marts and need no filters of their own.
-
----
-
-### AI Chart Builder (Streamlit)
-Live at `http://84.8.253.68:8501`. Describe what you want to see in plain English; the app uses NVIDIA Llama 3.1-8B to write the SQL and creates the chart directly in Metabase via API.
-
-Source: `streamlit-agent/app.py`. Runs as a systemd service (`streamlit.service`) so it restarts automatically.
-
-### Metabase
-Dashboards connected directly to Postgres inside the Docker network. Not publicly exposed — access is available on request.
-
-### Power BI Desktop
-DirectQuery mode via SSH tunnel from a local machine:
-
-```bash
-ssh -i <key> -L 5432:localhost:5432 ubuntu@84.8.253.68
-```
-
-Point Power BI at `localhost:5432`, database `torino_pulse`. Better than an NSG rule scoped to your IP: mobile and home connections change address regularly.
-
 ---
 
 ## Data quality notes
 
 ### GPS dropouts
-About 2.3% of vehicle positions report `latitude = 0, longitude = 0`. Filtered in staging. All surviving coordinates fall inside a plausible bounding box for the Turin metro area (lat 44.92–45.19, lon 7.50–7.84), with zero outliers.
-
-### Vehicles without a trip
-7.4% of position reports carry a `route_id` but no `trip_id`. This peaks at end of service — 18% at 19:00 local against 3.5% mid-afternoon. Consistent with vehicles returning to depot, but not confirmed. The column is named `has_assigned_trip` rather than `is_in_service`.
+About 2.3% of vehicle positions report `latitude = 0, longitude = 0`. Filtered in staging.
 
 ### One third of trips report no delay data
 33% of stop-time updates report `arrival_delay_seconds = 0`. Three checks decided how to treat them:
@@ -151,41 +127,93 @@ About 2.3% of vehicle positions report `latitude = 0, longitude = 0`. Filtered i
 
 **Trip-level clustering.** 2,229 of 6,717 trips report zero at every single stop.
 
-**Vehicle-level consistency.** 80% of vehicles sit firmly in one camp (always zero or never zero), which points at the vehicle rather than the moment.
+**Vehicle-level consistency.** 80% of vehicles sit firmly in one camp (always zero or never zero).
 
-A competing hypothesis — trips caught early, before GTT computed a delay — was tested and rejected: zero-trips and data-trips have identical observation counts (2.2 each). The evidence fits missing data encoded as `0`. `fct_route_performance` excludes them.
+The evidence fits missing data encoded as `0`. `fct_route_performance` excludes them. This cannot be proven without documentation from GTT, so the model header states the reasoning rather than asserting a fact.
 
 ### First stop always reads zero
-The first stop reports zero delay because the vehicle has not departed. 96% of `stop_sequence = 1` rows are zero. The `is_en_route` flag excludes it.
+The first stop reports zero delay because the vehicle has not departed. The `is_en_route` flag (`stop_sequence > 1`) excludes it.
 
 ### Delay drifts negative along a trip
-Median delay falls steadily with stop position: −25s at stop 2, −59s at stop 5, −98s at stop 15. Vehicles get further ahead of schedule the further they go — suggesting padded timetables.
+Median delay falls steadily with stop position: −25s at stop 2, −59s at stop 5, −98s at stop 15. Vehicles get progressively further ahead of schedule — suggesting padded timetables toward the end of routes.
 
 ---
 
 ## Findings
 
-Collected across approximately three days. Patterns are reported as hypotheses to re-test once a fuller dataset exists.
+Collected continuously since **19 August 2026**. Data updates daily; findings below reflect 13 days of collection as of 1 September 2026.
 
-**Fleet follows a clean daily cycle.**
+### Network-level punctuality vs European benchmarks
+
+GTT's on-time performance (OTP), defined as arriving within ±60 seconds of schedule, sits well below European standards:
+
+| Network | OTP |
+|---|---|
+| Hamburg HVV (best EU) | 93% |
+| European average | ~75% |
+| London TfL | 76% |
+| **GTT Turin — tram** | **21.8%** |
+| **GTT Turin — bus** | **27.9%** |
+
+The low OTP reflects a structural pattern, not random variation: the network runs systematically ahead of schedule (network median delay = −94s), which means timetables are padded and vehicles arrive early rather than on time. A rider who arrives at the scheduled departure time risks missing a vehicle that left early.
+
+### Trams outperform buses
+
+| Mode | Routes | OTP | pct_late | Median delay |
+|---|---|---|---|---|
+| Tram | 8 | 21.8% | 8.6% | −127s |
+| Bus | 34 | 27.9% | 15.1% | −87s |
+
+Trams have dedicated right-of-way and are not subject to road traffic. The gap in late arrivals (8.6% vs 15.1%) is consistent with this structural advantage.
+
+### Most problematic routes
+
+Routes with the highest rate of late arrivals (observations ≥ 200):
+
+| Route | pct_late | p90 delay | stddev |
+|---|---|---|---|
+| 11 | 35.1% | +344s | 297 |
+| 64 | 25.8% | +183s | 213 |
+| 60 | 25.7% | +215s | 208 |
+| 72 | 27.4% | +217s | 1,365 |
+
+Route 64 (Grugliasco → corso Vittorio Emanuele II) is a persistent outlier — the only route with a positive median delay across the entire observation period, and no active service alert to explain it.
+
+### Most unpredictable routes
+
+Routes with the highest delay variance (stddev), meaning the schedule is least useful as a predictor:
+
+| Route | stddev (seconds) | pct_late |
+|---|---|---|
+| 36 | 4,101 | 19.5% |
+| 17 | 3,148 | 19.6% |
+| 72 | 1,365 | 27.4% |
+| 12 | 1,050 | 13.0% |
+
+A high stddev means the vehicle sometimes arrives very early and sometimes very late — the schedule gives riders almost no useful information.
+
+### Most reliable routes
+
+| Route | OTP | pct_late | stddev |
+|---|---|---|---|
+| 65 | 34.2% | 11.2% | 134 |
+| 58/ | 31.7% | 13.1% | 154 |
+| 33 | 33.5% | 16.3% | 172 |
+
+### Fleet cycle
 
 ```
 03:00    2   ┃                          overnight floor
 04:00  151   ┃━━━━━━━━━━━━━             service resumes
 06:00  301   ┃━━━━━━━━━━━━━━━━━━━━━━━━━
 10:00  346   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  daytime peak
-18:00  322   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━
-21:00  253   ┃━━━━━━━━━━━━━━━━━━━━━
+18:00  296   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21:00  231   ┃━━━━━━━━━━━━━━━━━━━━━
 00:00  133   ┃━━━━━━━━━━━            night routes still running
 ```
 
-**Trams appear more punctual than buses.** Median-of-medians −160s for trams against −112s for buses, and 4.1% versus 11.1% of observations more than a minute late.
-
-**One route stands out.** Route 64 (via Napoli, Grugliasco → corso Vittorio Emanuele II) is the only line with a positive median delay (+15s) and 44% of observations running late. It carried no active service alert at the time of writing.
-
-**Median delay and late frequency correlate at r = 0.75.** Routes that run late on average also run late often.
-
-**Detours dominate service alerts.** Of 154 active alerts, 95 were detours, mostly tied to summer roadworks.
+### Alerts
+Detours dominate active service alerts (61%), mostly tied to summer roadworks. 165 alerts active as of collection date.
 
 ---
 
@@ -193,7 +221,7 @@ Collected across approximately three days. Patterns are reported as hypotheses t
 
 ### Requirements
 - Docker + Docker Compose
-- 4 GB RAM minimum. On exactly 4 GB you need swap (see below). 12 GB is comfortable.
+- 4 GB RAM minimum (12 GB recommended — see [Swap note](#swap-is-mandatory-on-a-4-gb-vm))
 
 ### Setup
 
@@ -224,20 +252,6 @@ docker exec -it torino-pulse-postgres-1 psql -U airflow -c "CREATE DATABASE meta
 docker compose -f docker-compose.metabase.yaml up -d
 ```
 
-First startup takes 3–5 minutes. UI at `http://localhost:3000`.
-
-### AI Chart Builder
-
-```bash
-cd streamlit-agent
-python3 -m venv venv && source venv/bin/activate
-pip install streamlit openai requests python-dotenv
-cp .env.example .env   # fill in your values
-streamlit run app.py
-```
-
-Needs a free NVIDIA API key from `https://build.nvidia.com` and Metabase credentials.
-
 ### Verifying data flow
 
 ```bash
@@ -257,13 +271,23 @@ docker compose exec airflow-scheduler bash -c \
   "cd /opt/airflow/dbt/torino_pulse && dbt run --profiles-dir . && dbt test --profiles-dir ."
 ```
 
+### Connecting Power BI
+
+Postgres is not exposed to the internet. Open an SSH tunnel instead:
+
+```bash
+ssh -i <key> -L 5432:localhost:5432 ubuntu@<server-ip>
+```
+
+Then point Power BI at `localhost:5432`, database `torino_pulse`, mode `DirectQuery`.
+
 ---
 
 ## Implementation notes
 
 ### A dependency conflict that reported itself as healthy
 
-After adding `dbt-core` to `_PIP_ADDITIONAL_REQUIREMENTS`, every DAG stopped producing data. All six containers showed `healthy`. The UI showed all DAGs unpaused. The worker logged `celery@… ready`. Nothing said broken.
+After adding `dbt-core` to `_PIP_ADDITIONAL_REQUIREMENTS`, every DAG stopped producing data. All six containers showed `healthy`. The UI showed all DAGs unpaused. Nothing said broken.
 
 The scheduler log had it:
 
@@ -275,12 +299,11 @@ Installing dbt had pulled in a `redis` version incompatible with the `kombu` bui
 
 ### UID mismatch makes dbt exit silently
 
-`dbt --version` worked. `dbt run` printed nothing and exited with code 2.
+`dbt --version` worked. `dbt run` printed nothing and exited with code 2 — no traceback, no log file.
 
-The project directory was owned by UID 1000 (`ubuntu` on the host); the container runs as UID 50000. dbt could read the models but could not create `logs/` or `target/`, and died before it had anywhere to write the error.
+The project directory was owned by UID 1000 (host); the container runs as UID 50000. dbt died before it had anywhere to write the error.
 
-Fixed by aligning the two:
-
+Fixed by:
 ```bash
 echo "AIRFLOW_UID=1000" > .env
 sudo chown -R 1000:1000 ~/torino-pulse
@@ -288,9 +311,7 @@ sudo chown -R 1000:1000 ~/torino-pulse
 
 ### Deduplicating alerts on ingest
 
-`raw_alerts` grew at roughly 38 MB/hour. Each 15-minute fetch re-inserted all 154 active alerts across every affected entity. Around 99% was a byte-identical copy of something already there.
-
-The fix hashes the content and upserts:
+`raw_alerts` grew at roughly 38 MB/hour. Each 15-minute fetch re-inserted all active alerts across every affected entity. The fix hashes content and upserts:
 
 ```sql
 ON CONFLICT (alert_id, content_hash,
@@ -305,84 +326,45 @@ Result: 245,307 rows collapsed to 8,634, and 193 MB to 9 MB.
 
 ### COPY for the large GTFS file
 
-`stop_times.txt` is 70 MB and 1.1M rows. Row-by-row INSERT takes tens of minutes. Streaming into COPY takes 24 seconds:
-
-```python
-cur.copy_expert(f"COPY {table} ({cols}) FROM STDIN WITH (FORMAT csv, QUOTE '\"')", text)
-```
+`stop_times.txt` is 70 MB and 1.1M rows. Row-by-row INSERT takes tens of minutes. Streaming into COPY takes 24 seconds.
 
 ### CASCADE when reloading reference tables
 
-The static GTFS loader recreates tables daily. Once dbt staging views existed on top of them, `DROP TABLE` started failing. `DROP TABLE ... CASCADE` is correct here: the views are rebuilt by the next dbt run.
+The static GTFS loader recreates tables daily. Once dbt staging views existed on top of them, `DROP TABLE` started failing with dependency errors. `DROP TABLE ... CASCADE` is correct here — the views are rebuilt by the next dbt run.
 
 ### Migrating from Azure to Oracle Cloud
 
-Data was migrated via `pg_dump` on the source, `scp` through a laptop as intermediary, and `pg_restore` on the destination:
+Data was migrated via `pg_dump` on the source, `scp` through a laptop as intermediary, and `pg_restore` on the destination. 842,864 positions and 5.2M trip_updates transferred without loss.
 
-```bash
-# Source (Azure)
-docker exec torino-pulse-postgres-1 pg_dump -U airflow -Fc torino_pulse > ~/torino_pulse.dump
+### Oracle Cloud ARM
 
-# Transfer via laptop
-scp azureuser@<azure-ip>:~/torino_pulse.dump ./
-scp ./torino_pulse.dump ubuntu@<oracle-ip>:~/
+Oracle Always Free provides 2 OCPU ARM64 and 12 GB RAM permanently. The Italy North (Turin) region was selected — the datacenter is in the same city as the transit network it monitors.
 
-# Destination (Oracle)
-docker cp ~/torino_pulse.dump torino-pulse-postgres-1:/tmp/
-docker exec torino-pulse-postgres-1 pg_restore -U airflow -d torino_pulse --clean --if-exists /tmp/torino_pulse.dump
-```
-
-137,297 positions, 911,532 trip_updates, 10,020 alerts, and 224 weather records transferred without loss.
-
-### Oracle Cloud ARM and region capacity
-
-Oracle Always Free provides 2 OCPU ARM64 and 12 GB RAM permanently. ARM images for Airflow, Postgres, and Redis are all multi-arch and work without modification.
-
-The Italy North (Turin) region (`eu-turin-1`) was selected — one availability domain, lower demand than Frankfurt or US East, and capacity was available immediately.
-
-Oracle's Always Free ARM allocation was halved from 4 OCPU / 24 GB to 2 OCPU / 12 GB in June 2026 with no public announcement. The new limits are sufficient for this stack with room to spare (swap usage: 0).
+Oracle's Always Free ARM allocation was reduced from 4 OCPU / 24 GB to 2 OCPU / 12 GB in June 2026 with no public announcement.
 
 ### Swap is mandatory on a 4 GB VM
 
-Airflow's Compose stack asks for 4 GB. A B2ls_v2 (Azure) reports 3.8 GB usable, so the system dies under load. Four GB of swap fixes it. Setting `AIRFLOW__CORE__LOAD_EXAMPLES: 'false'` cut swap usage from 2.6 GB to 800 MB by stopping the scheduler from parsing 74 example DAGs on every loop.
-
-### Azure for Students region restrictions
-
-Student subscriptions are limited by policy to roughly five regions. Read the allowed list before attempting:
-
-```
-Azure Portal → Policy → Assignments → "Allowed resource deployment regions" → Parameters
-```
-
-### Two dbt profiles, deliberately
-
-`dbt/torino_pulse/profiles.yml` uses `host: postgres` for the Docker service name. `~/.dbt/profiles.yml` uses `host: localhost` for local development. They are not interchangeable.
+Airflow's Compose stack asks for 4 GB. A 3.8 GB usable VM dies under load. Four GB of swap fixes it. Setting `AIRFLOW__CORE__LOAD_EXAMPLES: 'false'` cut swap usage from 2.6 GB to 800 MB.
 
 ### BashOperator instead of Astronomer Cosmos
 
-Cosmos does not install cleanly alongside Airflow 2.10.4 — pip enters dependency backtracking without converging. Two BashOperator tasks work fine:
-
-```python
-dbt_run >> dbt_test
-```
+Cosmos does not install cleanly alongside Airflow 2.10.4 — pip enters dependency backtracking without converging. Two BashOperator tasks work fine and install in seconds.
 
 ---
 
 ## Known gaps
 
-**`_PIP_ADDITIONAL_REQUIREMENTS` is development-only.** It reinstalls on every container start. A custom image is the correct fix.
+**`_PIP_ADDITIONAL_REQUIREMENTS` is development-only.** A custom image is the correct fix.
 
 **`profiles.yml` contains a plaintext password.** The fix is `password: "{{ env_var('DBT_PASSWORD') }}"`.
 
 **`shapes.txt` is not loaded** — route geometry for mapping is available but unused.
 
-**Collection gaps.** Two outages are visible in the data from the redis incident and a container restart. Hours affected are flagged by `is_sparse_hour` in `fct_hourly_service`.
-
 ---
 
 ## Roadmap
 
-- [ ] Re-run analysis on a full week, including a weekend and a rain event
+- [ ] Re-run analysis after 30 days of collection
 - [ ] Custom Airflow image, replacing `_PIP_ADDITIONAL_REQUIREMENTS`
 - [ ] Secrets via environment variables
 - [ ] Load `shapes.txt` for route map visualisation
@@ -392,7 +374,7 @@ dbt_run >> dbt_test
 
 ## Stack
 
-Airflow 2.10.4 · dbt-core 1.8.2 / dbt-postgres 1.8.2 · Postgres 13 · Redis 7.2 · Docker Compose · Python 3.12 · Metabase · Streamlit · NVIDIA Llama 3.1-8B · Power BI (DirectQuery) · Oracle Cloud ARM (Ubuntu 24.04)
+Airflow 2.10.4 · dbt-core 1.8.2 · Postgres 13 · Redis 7.2 · Docker Compose · Python 3.12 · Metabase · Oracle Cloud ARM (Ubuntu 24.04)
 
 ## Data attribution
 
