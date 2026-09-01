@@ -7,4 +7,8 @@ __pycache__/
 *.pbix
 *.key
 .env
-*.env
+*.env*.pub
+*.dump
+*.py.bak
+import google.py
+python check.py
