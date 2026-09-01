@@ -1,0 +1,19 @@
+services:
+  metabase:
+    image: metabase/metabase:latest
+    container_name: torino-pulse-metabase
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    networks:
+      - default
+
+volumes:
+  metabase_data:
+
+networks:
+  default:
+    name: torino-pulse_default
+    external: true
