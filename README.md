@@ -1,4 +1,10 @@
 # Torino Pulse
+![Airflow](https://img.shields.io/badge/Airflow-2.10.4-017CEE?logo=apache-airflow)
+![dbt](https://img.shields.io/badge/dbt-1.8.2-FF694B?logo=dbt)
+![Postgres](https://img.shields.io/badge/Postgres-13-336791?logo=postgresql)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
+![Oracle Cloud](https://img.shields.io/badge/Oracle%20Cloud-ARM%20Free-F80000?logo=oracle)
+![Live](https://img.shields.io/badge/Dashboard-Live-brightgreen)
 
 A production data pipeline that continuously ingests live public transit and weather data for Turin, Italy, transforms it through a layered dbt model, and exposes findings through live dashboards.
 
