@@ -4,9 +4,9 @@ A production data pipeline that continuously ingests live public transit and wea
 
 Data has been collecting since **19 August 2026** and updates every 5–15 minutes around the clock.
 
-**Live:**
-- Metabase dashboard: `http://84.8.253.68:3000`
-- Airflow UI: `http://84.8.253.68:8080` (airflow / airflow)
+
+**Live dashboard:**
+[Turin Transit Performance](http://84.8.253.68:3000/public/dashboard/92ef38b0-1bf1-490f-b65a-448831561620)
 
 ---
 
