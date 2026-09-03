@@ -6,7 +6,7 @@
 
 select
     dominant_condition,
-    is_precipitating,
+    had_precipitation,
     had_precipitation,
     local_hour,
     local_day_name,
