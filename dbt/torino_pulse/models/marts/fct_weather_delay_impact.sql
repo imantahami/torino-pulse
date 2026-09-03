@@ -1,11 +1,11 @@
 {{ config(materialized='table') }}
 
 -- Impact of weather conditions on transit delay.
--- Grain: one row per (weather_condition, local_hour).
+-- Grain: one row per (dominant_condition, local_hour).
 -- Source: fct_hourly_service already joins delay and weather per hour.
 
 select
-    weather_condition,
+    dominant_condition,
     is_precipitating,
     had_precipitation,
     local_hour,
@@ -23,9 +23,9 @@ select
 
     -- Summary by rain vs no rain (simpler grouping)
     case
-        when weather_condition in ('rain', 'rain_showers', 'thunderstorm') then 'rainy'
-        when weather_condition = 'fog' then 'foggy'
-        when weather_condition in ('clear', 'cloudy') then 'dry'
+        when dominant_condition in ('rain', 'rain_showers', 'thunderstorm') then 'rainy'
+        when dominant_condition = 'fog' then 'foggy'
+        when dominant_condition in ('clear', 'cloudy') then 'dry'
         else 'other'
     end as weather_group
 
