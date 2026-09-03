@@ -12,8 +12,7 @@ Data has been collecting since **19 August 2026** and updates every 5–15 minut
 
 
 **Live dashboard:**
-[Turin Transit Performance](http://84.8.253.68:3000/public/dashboard/92ef38b0-1bf1-490f-b65a-448831561620)
-
+[Turin Transit Dashboard](http://84.8.253.68:3000/public/dashboard/c893e417-08cc-4a87-b405-8a33fba2a81a)
 ---
 
 ## Why this exists
