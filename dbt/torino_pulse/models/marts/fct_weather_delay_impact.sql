@@ -7,7 +7,6 @@
 select
     dominant_condition,
     had_precipitation,
-    had_precipitation,
     local_hour,
     local_day_name,
 
@@ -33,3 +32,4 @@ from {{ ref('fct_hourly_service') }}
 where median_delay_seconds is not null
   and is_sparse_hour = false
 group by 1, 2, 3, 4, 5
+
