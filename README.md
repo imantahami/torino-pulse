@@ -119,6 +119,56 @@ No API keys required. The realtime feeds carry fewer fields than the GTFS-RT spe
 | `fct_alert_impact` | one row per (route, alert) | Which lines are disrupted and how |
 | `fct_weather_delay_impact` | one row per (condition, precipitation, local hour) | Delay grouped into dry / rainy / foggy buckets |
 
+### Lineage
+
+```mermaid
+flowchart LR
+    subgraph sources["raw sources (Postgres)"]
+        raw_vp[raw_vehicle_positions]
+        raw_tu[raw_trip_updates]
+        raw_al[raw_alerts]
+        raw_we[raw_weather]
+        gtfs_tr[gtfs_trips]
+        gtfs_ro[gtfs_routes]
+        gtfs_st[gtfs_stops]
+    end
+
+    subgraph staging["staging/ (views)"]
+        stg_vp[stg_vehicle_positions]
+        stg_tu[stg_trip_updates]
+        stg_al[stg_alerts]
+        stg_we[stg_weather]
+        stg_ro[stg_routes]
+        stg_st["stg_stops (unused — see Known gaps)"]
+    end
+
+    subgraph marts["marts/ (tables)"]
+        fct_rp[fct_route_performance]
+        fct_hs[fct_hourly_service]
+        fct_ai[fct_alert_impact]
+        fct_wd[fct_weather_delay_impact]
+    end
+
+    raw_vp --> stg_vp
+    raw_tu --> stg_tu
+    gtfs_tr --> stg_tu
+    raw_al --> stg_al
+    raw_we --> stg_we
+    gtfs_ro --> stg_ro
+    gtfs_st --> stg_st
+
+    stg_tu --> fct_rp
+    stg_ro --> fct_rp
+    stg_vp --> fct_hs
+    stg_tu --> fct_hs
+    stg_we --> fct_hs
+    stg_al --> fct_ai
+    stg_ro --> fct_ai
+    fct_hs --> fct_wd
+```
+
+Generated from each model's actual `ref()`/`source()` calls, not hand-drawn — `fct_weather_delay_impact` is the one mart built on another mart rather than directly on staging. Full column-level docs (including tests and descriptions) are available locally via `dbt docs generate && dbt docs serve`.
+
 ---
 
 ## Data quality notes
