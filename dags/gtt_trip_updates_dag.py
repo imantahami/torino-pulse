@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
+import os
 import requests
 import psycopg2
 from google.transit import gtfs_realtime_pb2
@@ -12,7 +13,7 @@ def fetch_and_store_trip_updates():
         port=5432,
         dbname="torino_pulse",
         user="airflow",
-        password="airflow"
+        password=os.environ["POSTGRES_PASSWORD"]
     )
     cur = conn.cursor()
 

@@ -6,7 +6,7 @@ torino_pulse:
       host: postgres
       port: 5432
       user: airflow
-      password: airflow
+      password: "{{ env_var('DBT_PASSWORD') }}"
       dbname: torino_pulse
       schema: public
       threads: 4

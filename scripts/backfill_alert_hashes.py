@@ -7,11 +7,12 @@ Run once from inside the scheduler container:
 """
 
 import hashlib
+import os
 import psycopg2
 
 conn = psycopg2.connect(
     host="postgres", port=5432,
-    dbname="torino_pulse", user="airflow", password="airflow"
+    dbname="torino_pulse", user="airflow", password=os.environ["POSTGRES_PASSWORD"]
 )
 cur = conn.cursor()
 

@@ -3,6 +3,7 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import csv
 import io
+import os
 import zipfile
 
 import psycopg2
@@ -49,7 +50,7 @@ def load_static_gtfs():
         port=5432,
         dbname="torino_pulse",
         user="airflow",
-        password="airflow"
+        password=os.environ["POSTGRES_PASSWORD"]
     )
     cur = conn.cursor()
     loaded_at = datetime.now()

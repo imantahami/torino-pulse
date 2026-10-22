@@ -361,8 +361,6 @@ Cosmos does not install cleanly alongside Airflow 2.10.4 — pip enters dependen
 
 **`_PIP_ADDITIONAL_REQUIREMENTS` is development-only.** A custom image is the correct fix.
 
-**`profiles.yml` contains a plaintext password.** The fix is `password: "{{ env_var('DBT_PASSWORD') }}"`.
-
 **`shapes.txt` is not loaded** — route geometry for mapping is available but unused.
 
 ---
@@ -371,7 +369,7 @@ Cosmos does not install cleanly alongside Airflow 2.10.4 — pip enters dependen
 
 - [ ] Re-run analysis after 30 days of collection
 - [ ] Custom Airflow image, replacing `_PIP_ADDITIONAL_REQUIREMENTS`
-- [ ] Secrets via environment variables
+- [x] Secrets via environment variables
 - [ ] Load `shapes.txt` for route map visualisation
 - [ ] GitHub Actions running `dbt test` on PRs
 
