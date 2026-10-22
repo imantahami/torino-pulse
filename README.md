@@ -8,7 +8,7 @@
 
 A production data pipeline that continuously ingests live public transit and weather data for Turin, Italy, transforms it through a layered dbt model, and exposes findings through live dashboards.
 
-Data has been collecting since **19 August 2026** and updates every 5–15 minutes around the clock.
+Data has been collecting since **19 August 2026** and updates every 5–15 minutes around the clock — roughly 437,000 vehicle-position records a week (see [Ingestion volume](#ingestion-volume-by-day-of-week) in Findings).
 
 
 **Live dashboard:**
@@ -117,6 +117,7 @@ No API keys required. The realtime feeds carry fewer fields than the GTFS-RT spe
 | `fct_route_performance` | one row per route | Median, p90, stddev, punctuality bands |
 | `fct_hourly_service` | one row per local hour | Fleet size + delay + weather, joined |
 | `fct_alert_impact` | one row per (route, alert) | Which lines are disrupted and how |
+| `fct_weather_delay_impact` | one row per (condition, precipitation, local hour) | Delay grouped into dry / rainy / foggy buckets |
 
 ---
 
@@ -142,11 +143,14 @@ The first stop reports zero delay because the vehicle has not departed. The `is_
 ### Delay drifts negative along a trip
 Median delay falls steadily with stop position: −25s at stop 2, −59s at stop 5, −98s at stop 15. Vehicles get progressively further ahead of schedule — suggesting padded timetables toward the end of routes.
 
+### `fct_route_performance`'s window is shorter than the raw history
+`is_latest_observation` in `stg_trip_updates` keeps one row per `(trip_id, stop_sequence)` — the most recent fetch, discarding earlier ones. GTT reuses the same `trip_id` for a given scheduled trip on every service day, so this collapses each trip's day-over-day history down to its latest occurrence. In practice, `fct_route_performance`'s `first_observed_at` currently reads 1 October 2026, even though `raw_trip_updates` holds data back to 19 August 2026 (see [Ingestion volume](#ingestion-volume-by-day-of-week)). The route-level findings should be read as "most recent ~3 weeks," not "the full collection window."
+
 ---
 
 ## Findings
 
-Collected continuously since **19 August 2026**. Data updates daily; findings below reflect 13 days of collection as of 1 September 2026.
+Raw ingestion has run continuously since **19 August 2026** (26M+ `raw_trip_updates` rows to date). The route-level marts below (`fct_route_performance` and friends) keep only the *latest* observation per `(trip_id, stop_sequence)` — see [Data quality notes](#data-quality-notes) — and since GTT reuses the same `trip_id` on every service day, that collapses the punctuality numbers down to roughly the last 3 weeks of data (first observation in the current marts: **1 October 2026**). Findings below are current **as of 22 October 2026**; the queries behind every number are in [`analysis/findings.sql`](analysis/findings.sql) and are meant to be re-run as the window moves.
 
 ### Network-level punctuality vs European benchmarks
 
@@ -157,68 +161,106 @@ GTT's on-time performance (OTP), defined as arriving within ±60 seconds of sche
 | Hamburg HVV (best EU) | 93% |
 | European average | ~75% |
 | London TfL | 76% |
-| **GTT Turin — tram** | **21.8%** |
-| **GTT Turin — bus** | **27.9%** |
+| **GTT Turin — tram** | **25.4%** |
+| **GTT Turin — bus** | **28.7%** |
 
-The low OTP reflects a structural pattern, not random variation: the network runs systematically ahead of schedule (network median delay = −94s), which means timetables are padded and vehicles arrive early rather than on time. A rider who arrives at the scheduled departure time risks missing a vehicle that left early.
+The low OTP reflects a structural pattern, not random variation: across 478,117 observations on 44 routes, the network runs systematically ahead of schedule (network median delay = −52s), which means timetables are padded and vehicles arrive early rather than on time. A rider who arrives at the scheduled departure time risks missing a vehicle that left early.
 
-### Trams outperform buses
+### Buses and trams are now statistically close
 
-| Mode | Routes | OTP | pct_late | Median delay |
-|---|---|---|---|---|
-| Tram | 8 | 21.8% | 8.6% | −127s |
-| Bus | 34 | 27.9% | 15.1% | −87s |
+| Mode | Routes | Observations | OTP | pct_late | Median delay |
+|---|---|---|---|---|---|
+| Tram | 8 | 109,851 | 25.4% | 24.5% | −54s |
+| Bus | 36 | 368,266 | 28.7% | 24.8% | −51s |
 
-Trams have dedicated right-of-way and are not subject to road traffic. The gap in late arrivals (8.6% vs 15.1%) is consistent with this structural advantage.
+An earlier read of this data (13 days, ending 1 September) showed trams meaningfully behind buses. In the current window the gap has narrowed to a few points of OTP, and `pct_late` is essentially tied (24.5% vs 24.8%). Trams still have dedicated right-of-way, but that is no longer showing up as a clear punctuality advantage — worth re-checking again once more data accumulates rather than treating either reading as the final word.
 
 ### Most problematic routes
 
 Routes with the highest rate of late arrivals (observations ≥ 200):
 
-| Route | pct_late | p90 delay | stddev |
-|---|---|---|---|
-| 11 | 35.1% | +344s | 297 |
-| 64 | 25.8% | +183s | 213 |
-| 60 | 25.7% | +215s | 208 |
-| 72 | 27.4% | +217s | 1,365 |
+| Route | pct_late | p90 delay | stddev | observations |
+|---|---|---|---|---|
+| 17 | 48.5% | +561s | 1,647 | 17,051 |
+| 17/ | 43.8% | +475s | 301 | 3,439 |
+| 4 | 42.9% | +544s | 3,925 | 31,294 |
+| 6 | 41.2% | +469s | 314 | 3,936 |
+| 64 | 37.9% | +406s | 1,585 | 9,179 |
+| 68+ | 36.2% | +393s | 353 | 1,146 |
 
-Route 64 (Grugliasco → corso Vittorio Emanuele II) is a persistent outlier — the only route with a positive median delay across the entire observation period, and no active service alert to explain it.
+Route 64 was already a known outlier in the first reading of this data (September) and still is — a persistent pattern rather than a one-off.
 
 ### Most unpredictable routes
 
 Routes with the highest delay variance (stddev), meaning the schedule is least useful as a predictor:
 
-| Route | stddev (seconds) | pct_late |
-|---|---|---|
-| 36 | 4,101 | 19.5% |
-| 17 | 3,148 | 19.6% |
-| 72 | 1,365 | 27.4% |
-| 12 | 1,050 | 13.0% |
+| Route | stddev (seconds) | pct_late | observations |
+|---|---|---|---|
+| 36 | 4,415 | 25.0% | 10,520 |
+| 4 | 3,925 | 42.9% | 31,294 |
+| 5 | 3,488 | 29.2% | 15,202 |
+| 35 | 3,249 | 12.9% | 7,994 |
+| 3 | 3,069 | 10.6% | 10,062 |
+| 60 | 2,913 | 32.3% | 6,124 |
 
-A high stddev means the vehicle sometimes arrives very early and sometimes very late — the schedule gives riders almost no useful information.
+A high stddev means the vehicle sometimes arrives very early and sometimes very late — the schedule gives riders almost no useful information. Route 36 topped this list in the earlier reading too.
 
 ### Most reliable routes
 
-| Route | OTP | pct_late | stddev |
-|---|---|---|---|
-| 65 | 34.2% | 11.2% | 134 |
-| 58/ | 31.7% | 13.1% | 154 |
-| 33 | 33.5% | 16.3% | 172 |
+| Route | OTP | pct_late | stddev | observations |
+|---|---|---|---|---|
+| 12 | 40.0% | 23.6% | 207 | 7,165 |
+| 58/ | 37.5% | 22.9% | 168 | 7,195 |
+| 16 CD | 35.6% | 23.6% | 248 | 8,305 |
+| 33 | 35.5% | 25.9% | 202 | 14,809 |
+| 74 | 35.3% | 24.6% | 189 | 9,361 |
+| 13+ | 35.2% | 20.5% | 195 | 1,579 |
 
 ### Fleet cycle
 
+Average active vehicles by hour of day (hours with fewer than 1,500 position reports are excluded as partial/unreliable):
+
 ```
-03:00    2   ┃                          overnight floor
-04:00  151   ┃━━━━━━━━━━━━━             service resumes
-06:00  301   ┃━━━━━━━━━━━━━━━━━━━━━━━━━
-10:00  346   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  daytime peak
-18:00  296   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━
-21:00  231   ┃━━━━━━━━━━━━━━━━━━━━━
-00:00  133   ┃━━━━━━━━━━━            night routes still running
+00:00  146   ┃━━━━━━━━━━                overnight low
+05:00  268   ┃━━━━━━━━━━━━━━━━━━         service resumes
+07:00  449   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+08:00  454   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  daily peak
+10:00  413   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14:00  385   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━
+18:00  406   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20:00  368   ┃━━━━━━━━━━━━━━━━━━━━━━━━━
+22:00  162   ┃━━━━━━━━━━━               night routes winding down
 ```
 
 ### Alerts
-Detours dominate active service alerts (61%), mostly tied to summer roadworks. 165 alerts active as of collection date.
+
+Detours account for 60% of every alert raised since collection began (591 of 982 distinct alerts), with 153 active as of this snapshot. The rest split across `OTHER_EFFECT` (256), `NO_EFFECT` (53), `MODIFIED_SERVICE` (49), and a long tail of rarer effects.
+
+### Weather vs delay
+
+| Condition | Hours observed | avg pct_late | avg median delay |
+|---|---|---|---|
+| Dry | 849 | 21.7% | −60s |
+| Rainy | 73 | 23.1% | −63s |
+| Foggy | 16 | 18.0% | −75s |
+
+The differences here are small (a few points of `pct_late`, tens of seconds of median delay) and the rainy/foggy samples are thin (73 and 16 hours respectively) next to 849 dry hours. This reads as a weak or inconclusive weather effect, not a confirmed one — there isn't enough data yet to say weather meaningfully moves GTT's delays either way.
+
+### Ingestion volume by day of week
+
+Averaged across the full collection window (19 August – 22 October 2026), vehicle-position volume is lower on weekends, when fewer vehicles run:
+
+| Day | Avg. position reports/day |
+|---|---|
+| Tuesday | ~75,700 |
+| Wednesday | ~70,200 |
+| Friday | ~66,900 |
+| Monday | ~66,800 |
+| Thursday | ~66,300 |
+| Saturday | ~55,800 |
+| Sunday | ~35,900 |
+
+That's roughly **437,000 vehicle-position records a week**, ingested automatically on a 5-minute schedule with no manual intervention.
 
 ---
 
@@ -367,7 +409,7 @@ Cosmos does not install cleanly alongside Airflow 2.10.4 — pip enters dependen
 
 ## Roadmap
 
-- [ ] Re-run analysis after 30 days of collection
+- [x] Re-run analysis after 30 days of collection
 - [ ] Custom Airflow image, replacing `_PIP_ADDITIONAL_REQUIREMENTS`
 - [x] Secrets via environment variables
 - [ ] Load `shapes.txt` for route map visualisation
