@@ -348,13 +348,15 @@ Detours account for 62% of every alert raised since collection began (676 of 1,0
 
 ### Weather vs delay
 
+Averages are weighted by the number of hours behind each (condition, hour of day, weekday) group:
+
 | Condition | Hours observed | avg pct_late | avg median delay |
 |---|---|---|---|
-| Dry | 1,106 | 21.7% | −64s |
-| Rainy | 77 | 22.8% | −58s |
-| Foggy | 35 | 18.0% | −72s |
+| Dry | 1,106 | 21.4% | −66s |
+| Rainy | 77 | 22.2% | −62s |
+| Foggy | 35 | 18.0% | −71s |
 
-The differences here are small (a few points of `pct_late`, tens of seconds of median delay) and the rainy/foggy samples are thin (77 and 35 hours respectively) next to 1,106 dry hours. This reads as a weak or inconclusive weather effect, not a confirmed one — there isn't enough data yet to say weather meaningfully moves GTT's delays either way.
+Dry and rainy hours differ by less than one point of `pct_late` and a few seconds of median delay, and the rainy and foggy samples are thin (77 and 35 hours) next to 1,106 dry hours. Rain also falls at different times of day than dry weather, and hour of day is not controlled for in this comparison. This reads as a weak or inconclusive weather effect, not a confirmed one — there isn't enough data yet to say weather meaningfully moves GTT's delays either way.
 
 ### Ingestion volume by day of week
 

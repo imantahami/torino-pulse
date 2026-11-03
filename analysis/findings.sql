@@ -108,11 +108,13 @@ where is_currently_active;
 -- ============================================================
 -- 9. Weather vs delay (dry / rainy / foggy)
 -- ============================================================
+-- Weighted by hours_observed: each row of fct_weather_delay_impact is one
+-- (condition, hour of day, weekday) group with a different number of hours behind it.
 select
     weather_group,
-    sum(hours_observed)                      as hours,
-    round(avg(avg_pct_late), 1)              as avg_pct_late,
-    round(avg(avg_median_delay), 1)          as avg_median_delay
+    sum(hours_observed)                                                          as hours,
+    round((sum(avg_pct_late * hours_observed) / sum(hours_observed))::numeric, 1)     as avg_pct_late,
+    round((sum(avg_median_delay * hours_observed) / sum(hours_observed))::numeric)    as avg_median_delay
 from fct_weather_delay_impact
 group by weather_group
 order by hours desc;
