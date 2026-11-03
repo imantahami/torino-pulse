@@ -26,26 +26,30 @@ with base as (
       and tu.stop_sequence is not null
 ),
 
+-- GTT reuses the same trip_id on many service days, so every window is
+-- partitioned by trip_start_date as well. Without it, a trip's observations
+-- from earlier days were treated as superseded and dropped from
+-- is_latest_observation, so most days' delays were missing from the marts.
 flagged as (
     select
         *,
         row_number() over (
-            partition by trip_id, stop_sequence
+            partition by trip_id, trip_start_date, stop_sequence
             order by fetched_at
         ) as observation_number,
         row_number() over (
-            partition by trip_id, stop_sequence
+            partition by trip_id, trip_start_date, stop_sequence
             order by fetched_at desc
         ) as recency_rank,
         count(*) over (
-            partition by trip_id, stop_sequence
+            partition by trip_id, trip_start_date, stop_sequence
         ) as total_observations,
         lag(arrival_delay_seconds) over (
-            partition by trip_id, stop_sequence
+            partition by trip_id, trip_start_date, stop_sequence
             order by fetched_at
         ) as previous_delay_seconds,
         first_value(arrival_delay_seconds) over (
-            partition by trip_id, stop_sequence
+            partition by trip_id, trip_start_date, stop_sequence
             order by fetched_at
             rows between unbounded preceding and unbounded following
         ) as first_delay_seconds
