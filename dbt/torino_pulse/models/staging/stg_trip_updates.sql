@@ -20,7 +20,7 @@ with base as (
         to_timestamp(tu.gps_timestamp) at time zone 'UTC' as gps_reported_at,
         tu.fetched_at
     from {{ source('raw', 'raw_trip_updates') }} tu
-    left join {{ source('raw', 'gtfs_trips') }} t
+    left join {{ ref('stg_gtfs_trips') }} t
         on tu.trip_id = t.trip_id
     where tu.trip_id is not null
       and tu.stop_sequence is not null

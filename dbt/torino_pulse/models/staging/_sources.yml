@@ -11,6 +11,8 @@ sources:
       - name: gtfs_routes
       - name: gtfs_stops
       - name: gtfs_trips
+      - name: gtfs_routes_history
+      - name: gtfs_trips_history
       - name: gtfs_agency
       - name: gtfs_calendar
 
@@ -47,8 +49,15 @@ models:
       - name: trip_id
         data_tests: [not_null]
       - name: route_id
-        description: "Resolved via join to gtfs_trips. Null would mean an unmatched trip."
-        data_tests: [not_null]
+        description: >
+          Resolved via join to stg_gtfs_trips (the GTFS history table). Null means the
+          trip_id was never seen in a captured feed. Observations recorded before
+          the history table existed (Aug to early Nov 2026) are largely unresolved
+          and cannot be recovered, so this test only covers rows from the cutover onward.
+        data_tests:
+          - not_null:
+              config:
+                where: "fetched_at >= '2026-11-03'"
       - name: stop_sequence
         data_tests: [not_null]
       - name: is_latest_observation
@@ -71,8 +80,19 @@ models:
       - name: effect
         data_tests: [not_null]
 
+  - name: stg_gtfs_trips
+    description: >
+      One row per trip_id, resolved to the route it was most recently seen on, built
+      from the never-dropped gtfs_trips_history table so realtime observations still
+      resolve after GTT rotates its trip_ids.
+    columns:
+      - name: trip_id
+        data_tests: [unique, not_null]
+      - name: route_id
+        data_tests: [not_null]
+
   - name: stg_routes
-    description: "GTT route reference data with human-readable names and derived mode/service-area classification."
+    description: "GTT route reference data (from gtfs_routes_history, so retired routes stay resolvable) with human-readable names and derived mode/service-area classification."
     columns:
       - name: route_id
         data_tests: [unique, not_null]

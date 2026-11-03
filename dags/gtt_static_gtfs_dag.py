@@ -129,6 +129,131 @@ def load_static_gtfs():
     conn.close()
 
 
+# --- History tables ---------------------------------------------------------
+#
+# load_static_gtfs() drops and recreates gtfs_* every day, so those tables only
+# ever describe the feed GTT published today. GTT rotates trip_ids when it
+# publishes a new feed, which means realtime observations recorded under an
+# older feed can no longer be resolved to a route. The history tables below are
+# never dropped: each daily run upserts today's feed into them, so every
+# trip_id / route_id that has ever been published stays resolvable.
+#
+# They only accumulate from the first run onward. Observations recorded before
+# that, under feeds that were not captured, cannot be resolved retroactively.
+
+HISTORY_DDL = """
+CREATE TABLE IF NOT EXISTS gtfs_trips_history (
+    trip_id        TEXT      NOT NULL,
+    route_id       TEXT      NOT NULL,
+    direction_id   TEXT,
+    trip_headsign  TEXT,
+    first_seen_at  TIMESTAMP NOT NULL,
+    last_seen_at   TIMESTAMP NOT NULL,
+    PRIMARY KEY (trip_id, route_id)
+);
+
+CREATE TABLE IF NOT EXISTS gtfs_routes_history (
+    route_id          TEXT      NOT NULL PRIMARY KEY,
+    agency_id         TEXT,
+    route_short_name  TEXT,
+    route_long_name   TEXT,
+    route_desc        TEXT,
+    route_type        TEXT,
+    route_url         TEXT,
+    route_color       TEXT,
+    route_text_color  TEXT,
+    first_seen_at     TIMESTAMP NOT NULL,
+    last_seen_at      TIMESTAMP NOT NULL
+);
+"""
+
+# DISTINCT ON guards against duplicate keys within one feed, which would make
+# ON CONFLICT fail with "cannot affect row a second time".
+UPSERT_TRIPS_SQL = """
+INSERT INTO gtfs_trips_history
+    (trip_id, route_id, direction_id, trip_headsign, first_seen_at, last_seen_at)
+SELECT DISTINCT ON (trip_id, route_id)
+    trip_id, route_id, direction_id, trip_headsign, %(ts)s, %(ts)s
+FROM gtfs_trips
+WHERE trip_id IS NOT NULL AND route_id IS NOT NULL
+ORDER BY trip_id, route_id
+ON CONFLICT (trip_id, route_id) DO UPDATE SET
+    direction_id  = EXCLUDED.direction_id,
+    trip_headsign = EXCLUDED.trip_headsign,
+    last_seen_at  = EXCLUDED.last_seen_at
+"""
+
+# Latest feed wins for descriptive attributes; first_seen_at is kept.
+UPSERT_ROUTES_SQL = """
+INSERT INTO gtfs_routes_history
+    (route_id, agency_id, route_short_name, route_long_name, route_desc,
+     route_type, route_url, route_color, route_text_color, first_seen_at, last_seen_at)
+SELECT DISTINCT ON (route_id)
+    route_id, agency_id, route_short_name, route_long_name, route_desc,
+    route_type, route_url, route_color, route_text_color, %(ts)s, %(ts)s
+FROM gtfs_routes
+WHERE route_id IS NOT NULL
+ORDER BY route_id
+ON CONFLICT (route_id) DO UPDATE SET
+    agency_id        = EXCLUDED.agency_id,
+    route_short_name = EXCLUDED.route_short_name,
+    route_long_name  = EXCLUDED.route_long_name,
+    route_desc       = EXCLUDED.route_desc,
+    route_type       = EXCLUDED.route_type,
+    route_url        = EXCLUDED.route_url,
+    route_color      = EXCLUDED.route_color,
+    route_text_color = EXCLUDED.route_text_color,
+    last_seen_at     = EXCLUDED.last_seen_at
+"""
+
+
+def update_gtfs_history():
+    conn = psycopg2.connect(
+        host="postgres",
+        port=5432,
+        dbname="torino_pulse",
+        user="airflow",
+        password=os.environ["POSTGRES_PASSWORD"]
+    )
+    cur = conn.cursor()
+
+    # Refuse to run against an empty feed, so a failed load can't silently
+    # leave the history looking up to date.
+    for table in ("gtfs_trips", "gtfs_routes"):
+        cur.execute(f"SELECT count(*) FROM {table}")
+        if cur.fetchone()[0] == 0:
+            raise RuntimeError(f"{table} is empty; refusing to update history")
+
+    cur.execute(HISTORY_DDL)
+    params = {"ts": datetime.now()}
+    cur.execute(UPSERT_TRIPS_SQL, params)
+    cur.execute(UPSERT_ROUTES_SQL, params)
+    conn.commit()
+
+    cur.execute("SELECT count(*) FROM gtfs_trips_history")
+    print(f"gtfs_trips_history: {cur.fetchone()[0]} rows")
+    cur.execute("SELECT count(*) FROM gtfs_routes_history")
+    print(f"gtfs_routes_history: {cur.fetchone()[0]} rows")
+
+    # stg_gtfs_trips resolves each trip_id to its most recently seen route.
+    # That is only safe if GTT does not reuse a trip_id for a different route,
+    # so report it if it ever happens.
+    cur.execute("""
+        SELECT count(*) FROM (
+            SELECT trip_id FROM gtfs_trips_history
+            GROUP BY trip_id HAVING count(*) > 1
+        ) t
+    """)
+    reused = cur.fetchone()[0]
+    if reused:
+        print(f"WARNING: {reused} trip_id(s) map to more than one route_id in history")
+    else:
+        print("No trip_id maps to more than one route_id.")
+
+    cur.close()
+    conn.close()
+
+
 default_args = {
     'owner': 'iman',
     'retries': 1,
@@ -148,3 +273,10 @@ with DAG(
         task_id='load_static_gtfs',
         python_callable=load_static_gtfs,
     )
+
+    history_task = PythonOperator(
+        task_id='update_gtfs_history',
+        python_callable=update_gtfs_history,
+    )
+
+    load_task >> history_task

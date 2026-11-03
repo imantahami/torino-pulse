@@ -33,6 +33,11 @@ select
     -- night routes carry an N in the short name
     route_short_name like '%N%' as is_night_route,
 
-    loaded_at
+    first_seen_at,
+    last_seen_at,
+    last_seen_at as loaded_at
 
-from {{ source('raw', 'gtfs_routes') }}
+-- Read from the history table, not gtfs_routes: gtfs_routes is rebuilt daily
+-- and only holds today's feed, so routes that left the feed would vanish and
+-- take their old observations with them in the marts.
+from {{ source('raw', 'gtfs_routes_history') }}
