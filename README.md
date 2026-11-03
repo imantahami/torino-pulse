@@ -226,7 +226,16 @@ Median delay falls steadily with stop position: −25s at stop 2, −59s at stop
 
 **`trip_id` is reused across service days.** GTT publishes the same `trip_id` for a scheduled trip on every day it runs, so a trip is identified by `trip_id` plus `trip_start_date`. Until 3 November 2026 the window functions in `stg_trip_updates` were partitioned by `(trip_id, stop_sequence)` only, which made every later day's observation supersede the earlier ones: `is_latest_observation` kept just the last day each trip was seen. The partitions now include `trip_start_date`; `fct_route_performance` went from roughly 0.7M to 2.8M observations and its history now reaches back to 19 August.
 
-**Route attribution depends on feed history.** The realtime feed leaves `route_id` empty, and GTT rotates `trip_id`s with each new static feed. The static GTFS tables are rebuilt daily, so before 3 November 2026 an old observation could only be matched to a route if its `trip_id` was still in the current feed. `gtfs_trips_history` and `gtfs_routes_history` now keep every `trip_id` and route ever seen, but only from that date onward. Older observations whose `trip_id` was never captured have no route and are left out of the route-level marts, so route rankings lean toward trips that were resolvable.
+**Route attribution depends on feed history.** The realtime feed leaves `route_id` empty, and GTT rotates `trip_id`s with each new static feed. The static GTFS tables are rebuilt daily, so before 3 November 2026 an old observation could only be matched to a route if its `trip_id` was still in the current feed. `gtfs_trips_history` and `gtfs_routes_history` now keep every `trip_id` and route ever seen, but only from that date onward. Observations whose `trip_id` was never captured have no route and are left out of the route-level marts. Of the 10.49M non-zero en-route delay observations, 7.70M (73%) have no route. The share by month:
+
+| Month | Delay observations | Without a route | OTP ±60s (all observations) |
+|---|---|---|---|
+| Aug 2026 (from 19 Aug) | 1.61M | 84% | 23.6% |
+| Sep 2026 | 4.04M | 100% | 27.2% |
+| Oct 2026 | 4.40M | 52% | 27.3% |
+| Nov 2026 (to 3 Nov) | 0.44M | 0% | 27.8% |
+
+So `fct_route_performance` (2.79M observations, 87 routes) is effectively an October–November view, with a little August and no September. Network-level punctuality does not need a route and is stable at 23.6–27.8% in every month, so the headline OTP is not an artefact of which routes could be resolved; route rankings are. Weather and fleet-size figures come from `fct_hourly_service`, which does not depend on route attribution.
 
 **No trip-update data on 10–11 September 2026.** `raw_trip_updates` has no rows on those two days, although vehicle positions were collected normally. `fct_hourly_service` therefore has no delay figures for them. There is nothing to backfill.
 
@@ -236,7 +245,7 @@ Median delay falls steadily with stop position: −25s at stop 2, −59s at stop
 
 ## Findings
 
-Data has been collected since **19 August 2026** (76 days as of 3 November 2026), with one gap: `raw_trip_updates` is empty on 10–11 September (see [Data quality notes](#data-quality-notes)). The route-level marts below cover **2.79M delay observations on 87 routes**; observations that could not be attributed to a route are excluded. Findings are current **as of 3 November 2026**; the queries behind every number are in [`analysis/findings.sql`](analysis/findings.sql) and are meant to be re-run as the window moves.
+Data has been collected since **19 August 2026** (76 days as of 3 November 2026), with one gap: `raw_trip_updates` is empty on 10–11 September (see [Data quality notes](#data-quality-notes)). The route-level figures below cover **2.79M delay observations on 87 routes**, which is the 27% of all non-zero en-route observations that could be attributed to a route; they mostly reflect October and early November (see [Data quality notes](#data-quality-notes)). Network-level, weather and fleet figures do not depend on route attribution. Findings are current **as of 3 November 2026**; the queries behind every number are in [`analysis/findings.sql`](analysis/findings.sql) and are meant to be re-run as the window moves.
 
 ### Network-level punctuality vs European benchmarks
 
