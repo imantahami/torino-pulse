@@ -2,7 +2,8 @@ version: 2
 
 sources:
   - name: raw
-    schema: public
+    # CI points this at the schema holding the fixture seeds.
+    schema: "{{ env_var('DBT_RAW_SCHEMA', 'public') }}"
     tables:
       - name: raw_vehicle_positions
       - name: raw_trip_updates

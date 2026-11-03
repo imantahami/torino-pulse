@@ -1,0 +1,14 @@
+# Profile used by the GitHub Actions workflow (dbt --profiles-dir ci).
+# Everything comes from environment variables so no credentials live in the repo.
+torino_pulse:
+  target: ci
+  outputs:
+    ci:
+      type: postgres
+      host: "{{ env_var('CI_PG_HOST', 'localhost') }}"
+      port: "{{ env_var('CI_PG_PORT', '5432') | as_number }}"
+      user: "{{ env_var('CI_PG_USER') }}"
+      password: "{{ env_var('CI_PG_PASSWORD') }}"
+      dbname: "{{ env_var('CI_PG_DB') }}"
+      schema: ci
+      threads: 2

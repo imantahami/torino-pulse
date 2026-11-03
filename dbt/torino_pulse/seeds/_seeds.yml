@@ -1,0 +1,114 @@
+version: 2
+
+# Fixture data for CI. These seeds stand in for the raw tables the DAGs write
+# in production and are only enabled for the `ci` target (see dbt_project.yml),
+# so `dbt seed` can never overwrite a real raw table.
+seeds:
+  - name: raw_vehicle_positions
+    config:
+      column_types:
+        id: integer
+        vehicle_id: text
+        vehicle_label: text
+        route_id: text
+        trip_id: text
+        trip_start_time: text
+        trip_start_date: text
+        latitude: double precision
+        longitude: double precision
+        bearing: double precision
+        gps_timestamp: bigint
+        fetched_at: timestamp
+
+  - name: raw_trip_updates
+    config:
+      column_types:
+        id: integer
+        trip_id: text
+        route_id: text
+        trip_start_time: text
+        trip_start_date: text
+        vehicle_id: text
+        vehicle_label: text
+        license_plate: text
+        wheelchair_accessible: text
+        stop_sequence: integer
+        arrival_delay_seconds: integer
+        departure_delay_seconds: integer
+        gps_timestamp: bigint
+        fetched_at: timestamp
+
+  - name: raw_alerts
+    config:
+      column_types:
+        id: integer
+        alert_id: text
+        content_hash: text
+        cause: text
+        effect: text
+        severity_level: text
+        header_text: text
+        description_text: text
+        url: text
+        active_period_start: bigint
+        active_period_end: bigint
+        informed_route_id: text
+        informed_stop_id: text
+        informed_trip_id: text
+        first_seen_at: timestamp
+        last_seen_at: timestamp
+        times_seen: integer
+        fetched_at: timestamp
+
+  - name: raw_weather
+    config:
+      column_types:
+        id: integer
+        observed_at: timestamp
+        temperature_c: double precision
+        precipitation_mm: double precision
+        wind_speed_kmh: double precision
+        weather_code: integer
+        fetched_at: timestamp
+
+  - name: gtfs_routes_history
+    config:
+      column_types:
+        route_id: text
+        agency_id: text
+        route_short_name: text
+        route_long_name: text
+        route_desc: text
+        route_type: text
+        route_url: text
+        route_color: text
+        route_text_color: text
+        first_seen_at: timestamp
+        last_seen_at: timestamp
+
+  - name: gtfs_trips_history
+    config:
+      column_types:
+        trip_id: text
+        route_id: text
+        direction_id: text
+        trip_headsign: text
+        first_seen_at: timestamp
+        last_seen_at: timestamp
+
+  - name: gtfs_stops
+    config:
+      column_types:
+        stop_id: text
+        stop_code: text
+        stop_name: text
+        stop_desc: text
+        stop_lat: text
+        stop_lon: text
+        zone_id: text
+        stop_url: text
+        location_type: text
+        parent_station: text
+        stop_timezone: text
+        wheelchair_boarding: text
+        loaded_at: timestamp
