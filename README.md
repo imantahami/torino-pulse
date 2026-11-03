@@ -43,13 +43,14 @@ The interesting problems here are not the happy path. They are the ones document
               │  AIRFLOW 2.10.4         │
               │  CeleryExecutor         │
               │                         │
-              │  6 DAGs:                │
+              │  7 DAGs:                │
               │  · positions    5 min   │
               │  · trip_updates 5 min   │
               │  · alerts      15 min   │
               │  · weather     15 min   │
               │  · static_gtfs  daily   │
               │  · dbt_transform 15 min │
+              │  · dbt_test      6 hours│
               └────────────┬────────────┘
                            │
               ┌────────────▼─────────────┐
@@ -504,7 +505,7 @@ Airflow's Compose stack asks for 4 GB. A 3.8 GB usable VM dies under load. Four 
 
 ### BashOperator instead of Astronomer Cosmos
 
-Cosmos does not install cleanly alongside Airflow 2.10.4 — pip enters dependency backtracking without converging. Two BashOperator tasks work fine and install in seconds.
+Cosmos does not install cleanly alongside Airflow 2.10.4 — pip enters dependency backtracking without converging. Plain BashOperator tasks work fine and install in seconds. `dbt run` (every 15 minutes) and `dbt test` (every 6 hours) are separate DAGs, because running the tests after every build kept the 4-core VM saturated.
 
 ---
 
