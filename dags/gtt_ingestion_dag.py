@@ -34,7 +34,15 @@ def fetch_and_store_vehicle_positions():
         )
     """)
 
-    # Add new columns if table already exists from previous version
+    # Add new columns if table already exists from previous version.
+    # Only ALTER when a column is actually missing: even with IF NOT EXISTS,
+    # ALTER TABLE takes an ACCESS EXCLUSIVE lock, which queues behind long
+    # dbt queries and blocks every other reader and writer of the table.
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = 'raw_vehicle_positions'"
+    )
+    existing_columns = {row[0] for row in cur.fetchall()}
     for col, coltype in [
         ("vehicle_label", "TEXT"),
         ("route_id", "TEXT"),
@@ -44,7 +52,8 @@ def fetch_and_store_vehicle_positions():
         ("bearing", "FLOAT"),
         ("gps_timestamp", "BIGINT"),
     ]:
-        cur.execute(f"ALTER TABLE raw_vehicle_positions ADD COLUMN IF NOT EXISTS {col} {coltype}")
+        if col not in existing_columns:
+            cur.execute(f"ALTER TABLE raw_vehicle_positions ADD COLUMN {col} {coltype}")
 
     conn.commit()
 

@@ -51,14 +51,22 @@ def fetch_and_store_alerts():
         )
     """)
 
-    # Columns added after the original table was created
+    # Columns added after the original table was created. Only ALTER when a
+    # column is missing: ALTER TABLE takes an ACCESS EXCLUSIVE lock even with
+    # IF NOT EXISTS, which blocks behind long-running dbt queries.
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = 'raw_alerts'"
+    )
+    existing_columns = {row[0] for row in cur.fetchall()}
     for col, coltype in [
         ("content_hash", "TEXT"),
         ("first_seen_at", "TIMESTAMP"),
         ("last_seen_at", "TIMESTAMP"),
         ("times_seen", "INT DEFAULT 1"),
     ]:
-        cur.execute(f"ALTER TABLE raw_alerts ADD COLUMN IF NOT EXISTS {col} {coltype}")
+        if col not in existing_columns:
+            cur.execute(f"ALTER TABLE raw_alerts ADD COLUMN {col} {coltype}")
 
     # One row per (alert, affected entity, content version).
     # COALESCE because informed_* columns are frequently NULL and
