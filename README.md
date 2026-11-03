@@ -97,6 +97,35 @@ No API keys required. The realtime feeds carry fewer fields than the GTFS-RT spe
 
 ---
 
+## Stored columns
+
+Everything the feeds publish is stored. Timestamps are UTC; staging models add local (Europe/Rome) time.
+
+### Raw tables
+
+| Table | Written by | Columns |
+|---|---|---|
+| `raw_vehicle_positions` | positions DAG | `id`, `vehicle_id`, `vehicle_label`, `route_id`, `trip_id`, `trip_start_time`, `trip_start_date`, `latitude`, `longitude`, `bearing`, `gps_timestamp`, `fetched_at` |
+| `raw_trip_updates` | trip-updates DAG | `id`, `trip_id`, `route_id`, `trip_start_time`, `trip_start_date`, `vehicle_id`, `vehicle_label`, `license_plate`, `wheelchair_accessible`, `stop_sequence`, `arrival_delay_seconds`, `departure_delay_seconds`, `gps_timestamp`, `fetched_at` |
+| `raw_alerts` | alerts DAG | `id`, `alert_id`, `content_hash`, `cause`, `effect`, `severity_level`, `header_text`, `description_text`, `url`, `active_period_start`, `active_period_end`, `informed_route_id`, `informed_stop_id`, `informed_trip_id`, `first_seen_at`, `last_seen_at`, `times_seen`, `fetched_at` |
+| `raw_weather` | weather DAG | `id`, `observed_at`, `temperature_c`, `precipitation_mm`, `wind_speed_kmh`, `weather_code`, `fetched_at` |
+| `gtfs_*` (routes, stops, trips, stop_times, ...) | static GTFS DAG | the standard GTFS columns plus `loaded_at`; rebuilt daily |
+| `gtfs_trips_history` | static GTFS DAG | `trip_id`, `route_id`, `direction_id`, `trip_headsign`, `first_seen_at`, `last_seen_at`; never dropped |
+| `gtfs_routes_history` | static GTFS DAG | `route_id`, `agency_id`, `route_short_name`, `route_long_name`, `route_desc`, `route_type`, `route_url`, `route_color`, `route_text_color`, `first_seen_at`, `last_seen_at`; never dropped |
+
+`trip_id` values are reused across service days, so a trip is identified by `trip_id` plus `trip_start_date`. The realtime `route_id` is empty in `raw_trip_updates`; it is resolved through `gtfs_trips_history`.
+
+### Mart columns
+
+| Model | Columns |
+|---|---|
+| `fct_route_performance` | `route_id`, `route_short_name`, `route_long_name`, `route_mode`, `service_area`, `is_night_route`, `observations`, `trips_observed`, `avg_delay_seconds`, `median_delay_seconds`, `p90_delay_seconds`, `stddev_delay_seconds`, `max_early_seconds`, `max_late_seconds`, `pct_late`, `pct_early`, `pct_on_time`, `pct_not_late_3min`, `pct_not_late_5min`, `pct_wheelchair_accessible`, `first_observed_at`, `last_observed_at` |
+| `fct_hourly_service` | `hour_bucket`, `local_hour`, `local_day_name`, `local_day_of_week`, `is_weekend`, `active_vehicles`, `active_routes`, `vehicles_on_a_trip`, `position_reports`, `delay_observations`, `trips_observed`, `avg_delay_seconds`, `median_delay_seconds`, `pct_late`, `avg_temperature_c`, `total_precipitation_mm`, `avg_wind_speed_kmh`, `had_precipitation`, `dominant_condition`, `is_sparse_hour` |
+| `fct_alert_impact` | `route_id`, `route_short_name`, `route_long_name`, `route_mode`, `service_area`, `alert_id`, `effect`, `cause`, `severity_level`, `header_text`, `stops_affected`, `active_from_local`, `active_until_local`, `planned_duration`, `is_currently_active`, `first_seen_at_local`, `last_seen_at_local`, `times_observed` |
+| `fct_weather_delay_impact` | `dominant_condition`, `had_precipitation`, `local_hour`, `local_day_name`, `weather_group`, `hours_observed`, `avg_temp_c`, `avg_precip_mm`, `avg_wind_kmh`, `avg_median_delay`, `avg_delay`, `avg_pct_late`, `avg_fleet_size` |
+
+---
+
 ## Model layers
 
 ### staging
