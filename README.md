@@ -323,19 +323,23 @@ Ranked by OTP (±60s), observations ≥ 200:
 
 ### Fleet cycle
 
-Average active vehicles by hour of day (hours with fewer than 1,500 position reports are excluded as partial/unreliable):
+Average active vehicles by local hour of day, over every hour in the collection window:
 
 ```
-00:00  146   ┃━━━━━━━━━━                overnight low
-05:00  265   ┃━━━━━━━━━━━━━━━━━         service resumes
-07:00  448   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-08:00  457   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  daily peak
-10:00  411   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━
-14:00  384   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━
+00:00  129   ┃━━━━━━━━━                 late-evening service
+03:00    5   ┃━                         overnight trough
+04:00  132   ┃━━━━━━━━━                 morning ramp-up
+05:00  237   ┃━━━━━━━━━━━━━━━━
+07:00  440   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+08:00  444   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  daily peak
+10:00  407   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14:00  378   ┃━━━━━━━━━━━━━━━━━━━━━━━━━
 18:00  404   ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━
-20:00  368   ┃━━━━━━━━━━━━━━━━━━━━━━━━━
-22:00  161   ┃━━━━━━━━━━━               night routes winding down
+20:00  363   ┃━━━━━━━━━━━━━━━━━━━━━━━━
+22:00  154   ┃━━━━━━━━━━
 ```
+
+Hours from 01:00 to 04:00 and 23:00 are flagged `is_sparse_hour` (fewer than 1,500 position reports), but that is mostly genuine night service, not missing data: at 03:00 no hour ever exceeded 16 active vehicles. During the day only a few hours out of roughly 74 per hour of day are flagged, which are collection gaps, and they move the daytime averages by less than 4%.
 
 ### Alerts
 

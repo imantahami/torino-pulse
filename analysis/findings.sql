@@ -86,7 +86,6 @@ select
     local_hour,
     round(avg(active_vehicles)) as avg_active_vehicles
 from fct_hourly_service
-where not is_sparse_hour
 group by local_hour
 order by local_hour;
 
