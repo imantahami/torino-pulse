@@ -275,7 +275,7 @@ On a strict symmetric ±60 s window, which penalises early arrivals, Turin's OTP
 | Metro | 1 | 22,272 | 22.1% | 11.1% | −119s | 98.5% |
 | Funicular | 1 | 334 | 24.3% | 11.4% | −102s | 97.3% |
 
-Trams are late less often than buses (21.3% vs 23.8%) but also arrive early more often (median −69s vs −58s), which is why their ±60s OTP comes out slightly lower. On a one-sided "less than 5 minutes late" threshold the two modes are identical at 92.6% (87.4% bus and 88.2% tram at 3 minutes). The metro and funicular rows are one line each, and the funicular has only 334 observations, so they are not comparable to the bus and tram figures. Earlier readings of this data were based on a much shorter window; treat any gap between modes as provisional.
+Mode-level figures are weighted by observations; "median delay" is the observation-weighted average of each route's median, not a median over all observations. Trams are late less often than buses (21.3% vs 23.8%) but also arrive early more often (median −69s vs −58s), which is why their ±60s OTP comes out slightly lower. On a one-sided "less than 5 minutes late" threshold the two modes are identical at 92.6% (87.4% bus and 88.2% tram at 3 minutes). The metro and funicular rows are one line each, and the funicular has only 334 observations, so they are not comparable to the bus and tram figures. Earlier readings of this data were based on a much shorter window; treat any gap between modes as provisional.
 
 ### Most problematic routes
 

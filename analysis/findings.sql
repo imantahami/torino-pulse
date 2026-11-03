@@ -35,6 +35,8 @@ from fct_route_performance;
 
 -- ============================================================
 -- 3. OTP / pct_late / median delay by mode (tram vs bus)
+-- median_delay_seconds here is the observation-weighted average of per-route
+-- medians, not a true median over all observations.
 -- ============================================================
 select
     route_mode,
