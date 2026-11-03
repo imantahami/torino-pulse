@@ -344,7 +344,20 @@ Hours from 01:00 to 04:00 and 23:00 are flagged `is_sparse_hour` (fewer than 1,5
 
 ### Alerts
 
-Detours account for 62% of every alert raised since collection began (676 of 1,098 distinct alerts), with 164 active as of this snapshot. The rest split across `OTHER_EFFECT` (266), `NO_EFFECT` (62), `MODIFIED_SERVICE` (57), and a long tail of rarer effects.
+Across all alerts since collection began (about 2,700 distinct `alert_id`s in `stg_alerts`), the most common effect is not a detour:
+
+| Effect | Alerts | Share | Median planned duration |
+|---|---|---|---|
+| `REDUCED_SERVICE` (all `TECHNICAL_PROBLEM`) | 1,291 | 47% | ~12 min |
+| `DETOUR` | 783 | 29% | ~41 h |
+| `OTHER_EFFECT` | 447 | 16% | ~64 h |
+| everything else (`NO_EFFECT`, `MODIFIED_SERVICE`, `ADDITIONAL_SERVICE`, `NO_SERVICE`, ...) | 213 | 8% | varies |
+
+The `REDUCED_SERVICE` alerts are short-lived and none of them appears in `fct_alert_impact`, which only keeps alerts that name a route. That table holds 1,098 distinct alerts, of which 676 (62%) are detours; the headline share of detours therefore depends on which of the two views you use.
+
+Why detours happen, by the cause GTT reports (783 detour alerts): `OTHER_CAUSE` 406, `DEMONSTRATION` 216, `MAINTENANCE` 104, `CONSTRUCTION` 36, `ACCIDENT` 20. More than a quarter of detours are attributed to demonstrations, and the most repeated headlines are "Manifestazione in centro citta'" (20 alerts) and "Corteo in centro citta'" (16). Among route-level alerts the most affected lines are trams 15 (49 alerts) and 4 (47), then the metro M1 (35). New alerts per month: 325 (from 19 Aug), 1,335 (Sep), 963 (Oct), 115 (1–3 Nov).
+
+164 alerts are active as of this snapshot, but that figure should be read with care: some alerts carry an end date about ten years away (the longest planned duration is 87,686 hours), so open-ended notices count as active indefinitely.
 
 ### Weather vs delay
 

@@ -95,10 +95,40 @@ order by local_hour;
 -- ============================================================
 -- 8. Alerts: breakdown by effect, and how many are active right now
 -- ============================================================
+-- All alerts (stg_alerts), by effect, with median planned duration.
+select effect,
+       count(distinct alert_id) as alerts,
+       round(percentile_cont(0.5) within group (order by extract(epoch from planned_duration) / 3600)::numeric, 1) as median_planned_hours
+from stg_alerts
+where active_until > active_from
+group by effect
+order by alerts desc;
+
+-- Route-level alerts only (fct_alert_impact), by effect.
 select effect, count(distinct alert_id) as n
 from fct_alert_impact
 group by effect
 order by n desc;
+
+-- Detours by reported cause.
+select cause, count(distinct alert_id) as alerts
+from stg_alerts
+where effect = 'DETOUR'
+group by cause
+order by alerts desc;
+
+-- Routes with the most alerts.
+select route_short_name, route_mode, count(distinct alert_id) as alerts
+from fct_alert_impact
+group by 1, 2
+order by alerts desc
+limit 10;
+
+-- New alerts per month (by first sighting).
+select date_trunc('month', first_seen_at)::date as month, count(distinct alert_id) as new_alerts
+from stg_alerts
+group by 1
+order by 1;
 
 select count(distinct alert_id) as active_alerts_now
 from fct_alert_impact
