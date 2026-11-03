@@ -53,6 +53,13 @@ select
     round(100.0 * count(*) filter (where o.arrival_delay_seconds < -60) / count(*), 1) as pct_early,
     round(100.0 * count(*) filter (where abs(o.arrival_delay_seconds) <= 60) / count(*), 1) as pct_on_time,
 
+    -- One-sided "not late" measures, for comparing against operators that
+    -- count only delays (early arrivals are not penalised). Same
+    -- observations as above; only the threshold differs. A stop-time is
+    -- "not late" when it arrives less than N minutes behind schedule.
+    round(100.0 * count(*) filter (where o.arrival_delay_seconds < 180) / count(*), 1) as pct_not_late_3min,
+    round(100.0 * count(*) filter (where o.arrival_delay_seconds < 300) / count(*), 1) as pct_not_late_5min,
+
     round(100.0 * count(*) filter (where o.is_wheelchair_accessible) / count(*), 1) as pct_wheelchair_accessible,
 
     min(o.fetched_at_local) as first_observed_at,
