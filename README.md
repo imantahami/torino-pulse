@@ -249,17 +249,21 @@ Data has been collected since **19 August 2026** (76 days as of 3 November 2026)
 
 ### Network-level punctuality vs European benchmarks
 
-GTT's on-time performance (OTP), defined as arriving within ±60 seconds of schedule, sits well below European standards:
+Operators define "on time" differently, so a comparison only means something on the same definition. Hamburg's HVV counts a vehicle as punctual when it is **not more than a few minutes late**; early arrivals are not penalised. GTT publishes no official tolerance. The table puts Turin on that same one-sided basis (`pct_not_late_3min` and `pct_not_late_5min` in `fct_route_performance`):
 
-| Network | OTP |
-|---|---|
-| Hamburg HVV (best EU) | 93% |
-| European average | ~75% |
-| London TfL | 76% |
-| **GTT Turin — tram** | **25.7%** |
-| **GTT Turin — bus** | **27.5%** |
+| Network | Mode | Punctuality | Definition and source |
+|---|---|---|---|
+| Hamburg HVV | U-Bahn | 98.0% | 2025, HVV press release PM260123 |
+| Hamburg HVV | S-Bahn | 93.6% | 2025, HVV press release PM260123 |
+| **GTT Turin** | **Metro** | **96.5%** | arrival less than 3 min late, 22,272 observations |
+| **GTT Turin** | **Bus** | **92.6%** | arrival less than 5 min late, 2.06M observations |
+| **GTT Turin** | **Tram** | **92.6%** | arrival less than 5 min late, 0.71M observations |
+| European average | — | ~75% | quoted figure, source not verified |
+| London TfL | — | 76% | quoted figure, source not verified |
 
-The low OTP reflects a structural pattern, not random variation: across 2,789,745 observations on 87 routes (network OTP 27.0%), the network runs systematically ahead of schedule (network median delay = −61s), which means timetables are padded and vehicles arrive early rather than on time. A rider who arrives at the scheduled departure time risks missing a vehicle that left early.
+Two caveats. First, the Turin figures come from GTT's *predicted* delay at each stop (the last prediction per trip, stop and day) rather than measured arrivals, and stops that report exactly 0 s are excluded as likely missing data (see [Data quality notes](#data-quality-notes)). Second, the HVV thresholds (3 min for U-Bahn, 5 min for buses) and the two "quoted figure" rows have not been checked against the operators' own definitions, so read the table as indicative.
+
+On a strict symmetric ±60 s window, which penalises early arrivals, Turin's OTP is only about 27% (bus 27.5%, tram 25.7%). That reflects a structural pattern, not random variation: across 2,789,745 observations on 87 routes (network OTP 27.0%), the network runs systematically ahead of schedule (network median delay = −61s), which means timetables are padded and vehicles arrive early rather than on time. A rider who arrives at the scheduled departure time risks missing a vehicle that left early.
 
 ### Buses and trams are close
 
@@ -270,7 +274,7 @@ The low OTP reflects a structural pattern, not random variation: across 2,789,74
 | Metro | 1 | 22,272 | 22.1% | 11.1% | −119s | 98.5% |
 | Funicular | 1 | 334 | 24.3% | 11.4% | −102s | 97.3% |
 
-Trams are late less often than buses (21.3% vs 23.8%) but also arrive early more often (median −69s vs −58s), which is why their ±60s OTP comes out slightly lower. On a one-sided "not more than 5 minutes late" threshold the two modes are identical at 92.6%. The metro and funicular rows are one line each, and the funicular has only 334 observations, so they are not comparable to the bus and tram figures. Earlier readings of this data were based on a much shorter window; treat any gap between modes as provisional.
+Trams are late less often than buses (21.3% vs 23.8%) but also arrive early more often (median −69s vs −58s), which is why their ±60s OTP comes out slightly lower. On a one-sided "less than 5 minutes late" threshold the two modes are identical at 92.6% (87.4% bus and 88.2% tram at 3 minutes). The metro and funicular rows are one line each, and the funicular has only 334 observations, so they are not comparable to the bus and tram figures. Earlier readings of this data were based on a much shorter window; treat any gap between modes as provisional.
 
 ### Most problematic routes
 
