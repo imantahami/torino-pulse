@@ -396,6 +396,7 @@ def update_gtfs_history():
         existing = {row[0] for row in cur.fetchall()}
         for name, coltype in columns:
             if name not in existing:
+                cur.execute("SET LOCAL lock_timeout = '5s'")
                 cur.execute(f"ALTER TABLE {table} ADD COLUMN {name} {coltype}")
     conn.commit()
 

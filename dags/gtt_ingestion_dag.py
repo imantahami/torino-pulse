@@ -5,6 +5,9 @@ import os
 import requests
 import psycopg2
 from google.transit import gtfs_realtime_pb2
+from gtt_common import store_feed_snapshot
+
+TRIP_REL = gtfs_realtime_pb2.TripDescriptor.ScheduleRelationship
 
 
 def fetch_and_store_vehicle_positions():
@@ -51,18 +54,28 @@ def fetch_and_store_vehicle_positions():
         ("trip_start_date", "TEXT"),
         ("bearing", "FLOAT"),
         ("gps_timestamp", "BIGINT"),
+        ("entity_id", "TEXT"),
+        ("trip_schedule_relationship", "TEXT"),
+        ("feed_timestamp", "BIGINT"),
     ]:
         if col not in existing_columns:
+            # Waiting for this lock behind a long dbt query would block every other
+            # query on the table (lock convoy), so fail fast and let the retry
+            # handle it. Normally the columns are added once by the migration script.
+            cur.execute("SET LOCAL lock_timeout = '5s'")
             cur.execute(f"ALTER TABLE raw_vehicle_positions ADD COLUMN {col} {coltype}")
 
     conn.commit()
 
     url = "https://percorsieorari.gtt.to.it/das_gtfsrt/vehicle_position.aspx"
-    response = requests.get(url)
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
     feed = gtfs_realtime_pb2.FeedMessage()
     feed.ParseFromString(response.content)
 
     fetched_at = datetime.now()
+    feed_timestamp = feed.header.timestamp if feed.header.HasField('timestamp') else None
+    store_feed_snapshot(cur, 'vehicle_position', fetched_at, response.content, feed_timestamp)
     count = 0
 
     for entity in feed.entity:
@@ -72,8 +85,9 @@ def fetch_and_store_vehicle_positions():
             cur.execute("""
                 INSERT INTO raw_vehicle_positions
                 (vehicle_id, vehicle_label, route_id, trip_id, trip_start_time,
-                 trip_start_date, latitude, longitude, bearing, gps_timestamp, fetched_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 trip_start_date, latitude, longitude, bearing, gps_timestamp, fetched_at,
+                 entity_id, trip_schedule_relationship, feed_timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 v.vehicle.id,
                 v.vehicle.label,
@@ -85,7 +99,10 @@ def fetch_and_store_vehicle_positions():
                 v.position.longitude,
                 v.position.bearing,
                 v.timestamp,
-                fetched_at
+                fetched_at,
+                entity.id,
+                TRIP_REL.Name(v.trip.schedule_relationship),
+                feed_timestamp
             ))
             count += 1
 

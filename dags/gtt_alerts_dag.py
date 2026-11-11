@@ -6,6 +6,7 @@ import os
 import requests
 import psycopg2
 from google.transit import gtfs_realtime_pb2
+from gtt_common import store_feed_snapshot
 
 
 def get_translation(field, lang='it'):
@@ -64,31 +65,61 @@ def fetch_and_store_alerts():
         ("first_seen_at", "TIMESTAMP"),
         ("last_seen_at", "TIMESTAMP"),
         ("times_seen", "INT DEFAULT 1"),
+        ("informed_agency_id", "TEXT"),
+        ("feed_timestamp", "BIGINT"),
     ]:
         if col not in existing_columns:
+            # Waiting for this lock behind a long dbt query would block every other
+            # query on the table (lock convoy), so fail fast and let the retry
+            # handle it. Normally the columns are added once by the migration script.
+            cur.execute("SET LOCAL lock_timeout = '5s'")
             cur.execute(f"ALTER TABLE raw_alerts ADD COLUMN {col} {coltype}")
 
     # One row per (alert, affected entity, content version).
     # COALESCE because informed_* columns are frequently NULL and
     # NULLs never compare equal in a unique index.
+    # The agency is part of the key since 12 Nov 2026: an alert can name several
+    # agencies and nothing else, and they must not collapse into one row. The old
+    # index (without the agency) is dropped once the new one exists.
     cur.execute("""
-        CREATE UNIQUE INDEX IF NOT EXISTS raw_alerts_dedup_idx
+        CREATE UNIQUE INDEX IF NOT EXISTS raw_alerts_dedup_idx2
         ON raw_alerts (
             alert_id,
             content_hash,
             COALESCE(informed_route_id, ''),
             COALESCE(informed_stop_id, ''),
-            COALESCE(informed_trip_id, '')
+            COALESCE(informed_trip_id, ''),
+            COALESCE(informed_agency_id, '')
         )
     """)
+    cur.execute("SELECT to_regclass('raw_alerts_dedup_idx')")
+    if cur.fetchone()[0] is not None:
+        # Dropping takes an ACCESS EXCLUSIVE lock, which would queue behind a long
+        # dbt query and block everything behind it, so give up quickly and retry
+        # on the next run instead of waiting.
+        try:
+            cur.execute("SAVEPOINT drop_old_index")
+            cur.execute("SET LOCAL lock_timeout = '3s'")
+            cur.execute("DROP INDEX raw_alerts_dedup_idx")
+            cur.execute("RELEASE SAVEPOINT drop_old_index")
+        except Exception as exc:
+            cur.execute("ROLLBACK TO SAVEPOINT drop_old_index")
+            print(f"Old dedup index not dropped yet, will retry next run: {exc}")
+    # While the old index still exists it would reject two agencies on one alert,
+    # so the agency is only stored once it is gone.
+    cur.execute("SELECT to_regclass('raw_alerts_dedup_idx')")
+    store_agency = cur.fetchone()[0] is None
     conn.commit()
 
     url = "https://percorsieorari.gtt.to.it/das_gtfsrt/alerts.aspx"
     response = requests.get(url, timeout=60)
+    response.raise_for_status()
     feed = gtfs_realtime_pb2.FeedMessage()
     feed.ParseFromString(response.content)
 
     now = datetime.now()
+    feed_timestamp = feed.header.timestamp if feed.header.HasField('timestamp') else None
+    store_feed_snapshot(cur, 'alerts', now, response.content, feed_timestamp)
     inserted = 0
     updated = 0
 
@@ -123,6 +154,7 @@ def fetch_and_store_alerts():
             route_id = (ie.route_id or None) if ie else None
             stop_id = (ie.stop_id or None) if ie else None
             trip_id = (ie.trip.trip_id or None) if (ie and ie.HasField('trip')) else None
+            agency_id = (ie.agency_id or None) if (ie and store_agency) else None
 
             cur.execute("""
                 INSERT INTO raw_alerts (
@@ -130,14 +162,16 @@ def fetch_and_store_alerts():
                     header_text, description_text, url,
                     active_period_start, active_period_end,
                     informed_route_id, informed_stop_id, informed_trip_id,
-                    first_seen_at, last_seen_at, times_seen, fetched_at
+                    first_seen_at, last_seen_at, times_seen, fetched_at,
+                    informed_agency_id, feed_timestamp
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s, %s, %s)
                 ON CONFLICT (
                     alert_id, content_hash,
                     COALESCE(informed_route_id, ''),
                     COALESCE(informed_stop_id, ''),
-                    COALESCE(informed_trip_id, '')
+                    COALESCE(informed_trip_id, ''),
+                    COALESCE(informed_agency_id, '')
                 )
                 DO UPDATE SET
                     last_seen_at = EXCLUDED.last_seen_at,
@@ -148,7 +182,8 @@ def fetch_and_store_alerts():
                 header, description, alert_url,
                 period_start, period_end,
                 route_id, stop_id, trip_id,
-                now, now, now
+                now, now, now,
+                agency_id, feed_timestamp
             ))
 
             was_inserted = cur.fetchone()[0]

@@ -5,6 +5,7 @@ import os
 import requests
 import psycopg2
 from google.transit import gtfs_realtime_pb2 as gtfs
+from gtt_common import store_feed_snapshot, scheduled_epoch
 
 TRIP_REL = gtfs.TripDescriptor.ScheduleRelationship
 STOP_REL = gtfs.TripUpdate.StopTimeUpdate.ScheduleRelationship
@@ -17,6 +18,52 @@ def event_field(stu, event_name, field):
         return None
     event = getattr(stu, event_name)
     return getattr(event, field) if event.HasField(field) else None
+
+
+def load_scheduled_times(cur, feed):
+    """Scheduled arrival (epoch seconds) of every stop in the feed, from today's static GTFS.
+
+    GTT sends some stops as an absolute predicted arrival instead of a delay, so the
+    delay can only be computed against the timetable. Doing the lookup now, while the
+    trip_id is certainly in the current static feed, avoids the problem that trip_ids
+    rotate and old observations can no longer be matched later.
+
+    Best effort: if the static tables are being rebuilt (daily, around midnight UTC) or
+    anything else fails, the scheduled time stays NULL and ingestion carries on.
+    Returns {(trip_id, start_date, stop_sequence): epoch}.
+    """
+    trips = {}
+    for entity in feed.entity:
+        if entity.HasField('trip_update'):
+            trip = entity.trip_update.trip
+            trips[trip.trip_id] = trip.start_date
+    if not trips:
+        return {}
+
+    try:
+        cur.execute("SAVEPOINT scheduled_times")
+        cur.execute(
+            "SELECT trip_id, stop_sequence, arrival_time, departure_time "
+            "FROM gtfs_stop_times WHERE trip_id = ANY(%s)",
+            (list(trips),),
+        )
+        rows = cur.fetchall()
+        cur.execute("RELEASE SAVEPOINT scheduled_times")
+    except Exception as exc:
+        cur.execute("ROLLBACK TO SAVEPOINT scheduled_times")
+        print(f"WARNING: could not read scheduled times: {exc}")
+        return {}
+
+    out = {}
+    for trip_id, stop_sequence, arrival, departure in rows:
+        try:
+            seq = int(stop_sequence)
+        except (TypeError, ValueError):
+            continue
+        epoch = scheduled_epoch(trips[trip_id], arrival or departure)
+        if epoch is not None:
+            out[(trip_id, trips[trip_id], seq)] = epoch
+    return out
 
 
 def fetch_and_store_trip_updates():
@@ -61,8 +108,14 @@ def fetch_and_store_trip_updates():
         ("arrival_time", "BIGINT"),
         ("departure_time", "BIGINT"),
         ("feed_timestamp", "BIGINT"),
+        ("entity_id", "TEXT"),
+        ("scheduled_arrival_time", "BIGINT"),
     ]:
         if col not in existing_columns:
+            # Waiting for this lock behind a long dbt query would block every other
+            # query on the table (lock convoy), so fail fast and let the retry
+            # handle it. Normally the columns are added once by the migration script.
+            cur.execute("SET LOCAL lock_timeout = '5s'")
             cur.execute(f"ALTER TABLE raw_trip_updates ADD COLUMN {col} {coltype}")
     conn.commit()
 
@@ -74,6 +127,8 @@ def fetch_and_store_trip_updates():
 
     fetched_at = datetime.now(timezone.utc).replace(tzinfo=None)
     feed_timestamp = feed.header.timestamp if feed.header.HasField('timestamp') else None
+    store_feed_snapshot(cur, 'trip_update', fetched_at, response.content, feed_timestamp)
+    scheduled = load_scheduled_times(cur, feed)
     count = 0
     trips_without_stops = 0
 
@@ -84,8 +139,9 @@ def fetch_and_store_trip_updates():
          stop_sequence, arrival_delay_seconds, departure_delay_seconds,
          gps_timestamp, fetched_at,
          trip_schedule_relationship, stop_schedule_relationship,
-         arrival_time, departure_time, feed_timestamp)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         arrival_time, departure_time, feed_timestamp,
+         entity_id, scheduled_arrival_time)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
 
     for entity in feed.entity:
@@ -113,6 +169,7 @@ def fetch_and_store_trip_updates():
                 tu.timestamp, fetched_at,
                 trip_rel, None,
                 None, None, feed_timestamp,
+                entity.id, None,
             ))
             count += 1
             trips_without_stops += 1
@@ -130,13 +187,16 @@ def fetch_and_store_trip_updates():
                 event_field(stu, 'arrival', 'time'),
                 event_field(stu, 'departure', 'time'),
                 feed_timestamp,
+                entity.id,
+                scheduled.get((tu.trip.trip_id, tu.trip.start_date, stu.stop_sequence)),
             ))
             count += 1
 
     conn.commit()
     cur.close()
     conn.close()
-    print(f"Inserted {count} rows ({trips_without_stops} trip-level rows without stop updates)")
+    print(f"Inserted {count} rows ({trips_without_stops} trip-level rows without stop updates, "
+          f"{len(scheduled)} scheduled times found)")
 
 
 default_args = {
