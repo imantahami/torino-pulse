@@ -5,6 +5,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
 ![Oracle Cloud](https://img.shields.io/badge/Oracle%20Cloud-ARM%20Free-F80000?logo=oracle)
 ![Live](https://img.shields.io/badge/Dashboard-Live-brightgreen)
+[![dbt CI](https://github.com/imantahami/torino-pulse/actions/workflows/dbt-ci.yml/badge.svg)](https://github.com/imantahami/torino-pulse/actions/workflows/dbt-ci.yml)
 
 A production data pipeline that continuously ingests live public transit and weather data for Turin, Italy, transforms it through a layered dbt model, and exposes findings through live dashboards.
 
@@ -575,7 +576,7 @@ In GTFS-RT, an unset integer field reads as `0`, which looks like "on time". `Ha
 - [x] Secrets via environment variables
 - [ ] Load `shapes.txt` for route map visualisation
 - [x] Versioned GTFS history so route attribution survives feed rotation
-- [ ] GitHub Actions running `dbt test` on PRs
+- [x] GitHub Actions running `dbt build` and the tests on PRs
 
 ---
 

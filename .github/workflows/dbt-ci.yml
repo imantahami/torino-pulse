@@ -1,0 +1,75 @@
+name: dbt CI
+
+# Builds and tests the dbt project against a throwaway Postgres loaded with the
+# small fixture seeds in dbt/torino_pulse/seeds. It never touches the production
+# database: the CI profile reads its connection from CI_PG_* variables and the
+# seeds are only enabled for the `ci` target.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  dbt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: torino_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d torino_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CI_PG_HOST: localhost
+      CI_PG_PORT: "5432"
+      CI_PG_USER: ci
+      CI_PG_PASSWORD: ci
+      CI_PG_DB: torino_ci
+      DBT_RAW_SCHEMA: ci
+
+    defaults:
+      run:
+        working-directory: dbt/torino_pulse
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # Pinned: an unpinned install pulls dbt-core 2.x pre-releases.
+      - name: Install dbt
+        run: pip install dbt-core==1.8.2 dbt-postgres==1.8.2
+
+      - name: Fixtures are in sync with the generator
+        working-directory: .
+        run: |
+          python scripts/generate_ci_seeds.py
+          git diff --exit-code -- dbt/torino_pulse/seeds
+
+      - name: dbt deps
+        run: dbt deps --profiles-dir ci --target ci
+
+      - name: dbt parse
+        run: dbt parse --profiles-dir ci --target ci
+
+      # The models read the raw tables through source(), not ref(), so dbt does not
+      # know the seeds must exist first: load them explicitly.
+      - name: dbt seed
+        run: dbt seed --profiles-dir ci --target ci
+
+      - name: dbt build (models and tests)
+        run: dbt build --profiles-dir ci --target ci --exclude "resource_type:seed"
