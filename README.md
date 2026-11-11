@@ -245,7 +245,7 @@ Everything in this section is a **dated snapshot**. The dashboard above shows th
 
 ### Snapshot: 11 November 2026
 
-Data collected since **19 August 2026** (84 days), with one gap: `raw_trip_updates` is empty on 10–11 September. The route-level figures cover **4.84M delay observations on 99 routes**. Route attribution is incomplete for the earliest months (see [Data quality notes](#data-quality-notes)), Route attribution is incomplete for the earliest months, and routes whose trips report arrival times instead of delays are under-represented (see [Data quality notes](#data-quality-notes)), so read route rankings with care; network-level, weather and fleet figures do not depend on it.
+Data collected since **19 August 2026** (84 days), with one gap: `raw_trip_updates` is empty on 10–11 September. The route-level figures cover **4.84M delay observations on 99 routes**. Route attribution is incomplete for the earliest months, and routes whose trips report arrival times instead of delays are under-represented (see [Data quality notes](#data-quality-notes)), so read route rankings with care. Weather and fleet figures do not depend on route attribution.
 
 ### Network-level punctuality vs European benchmarks
 
