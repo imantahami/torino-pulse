@@ -24,6 +24,14 @@ LOADED = {"routes.txt", "stops.txt", "trips.txt", "agency.txt",
           "calendar.txt", "calendar_dates.txt", "stop_times.txt"}
 
 
+def is_repeated(fd):
+    # protobuf >= 5 has is_repeated; older versions only have label
+    flag = getattr(fd, "is_repeated", None)
+    if flag is not None:
+        return flag
+    return fd.label == FieldDescriptor.LABEL_REPEATED
+
+
 def walk(msg, path, counts, samples, unknown):
     try:
         uf = msg.UnknownFields()
@@ -34,7 +42,7 @@ def walk(msg, path, counts, samples, unknown):
         pass
     for fd, value in msg.ListFields():
         name = f"{path}.{fd.name}"
-        items = value if fd.label == FieldDescriptor.LABEL_REPEATED else [value]
+        items = value if is_repeated(fd) else [value]
         for item in items:
             counts[name] += 1
             if fd.type == FieldDescriptor.TYPE_MESSAGE:
