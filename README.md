@@ -95,10 +95,10 @@ Everything runs in Docker Compose on one Oracle Cloud VM.Standard.A1.Flex (2 OCP
 | `vehicle_position.aspx` | GTFS-RT protobuf | 5 min | Vehicle ID, route, trip, lat/lon, bearing, GPS timestamp |
 | `trip_update.aspx` | GTFS-RT protobuf | 5 min | Per-stop arrival delay in seconds, license plate, wheelchair accessibility |
 | `alerts.aspx` | GTFS-RT protobuf | 15 min | Service disruptions: cause, effect, severity, affected routes and stops |
-| `gtt_gtfs.zip` | GTFS static | daily | About 200 routes, 6,900 stops, 1.1M stop_times; `trip_id`s rotate with every new feed |
+| `gtt_gtfs.zip` | GTFS static | daily | Every file in the zip (about 200 routes, 6,900 stops, 1.1M stop_times, plus shapes, a vehicle catalogue with capacity and equipment, timetables, fares); `trip_id`s rotate with every new feed |
 | Open-Meteo | JSON | 15 min | Temperature, precipitation, wind speed, WMO weather code |
 
-No API keys required. The realtime feeds carry fewer fields than the GTFS-RT spec allows — `current_status`, `occupancy_status`, and `congestion_level` are all absent from GTT's output. Everything GTT does publish is stored.
+No API keys required. The realtime feeds carry fewer fields than the GTFS-RT spec allows: there is no speed, odometer, `current_status`, `occupancy_status`, `congestion_level`, `stop_id` or departure time in GTT's output (checked with `scripts/inspect_gtt_feeds.py`). Everything GTT does publish is stored, and the original protobuf of every fetch is kept in `raw_feed_snapshots`, so a field that matters later can be recovered for the past.
 
 ---
 
@@ -110,13 +110,16 @@ Everything the feeds publish is stored. Timestamps are UTC; staging models add l
 
 | Table | Written by | Columns |
 |---|---|---|
-| `raw_vehicle_positions` | positions DAG | `id`, `vehicle_id`, `vehicle_label`, `route_id`, `trip_id`, `trip_start_time`, `trip_start_date`, `latitude`, `longitude`, `bearing`, `gps_timestamp`, `fetched_at` |
-| `raw_trip_updates` | trip-updates DAG | `id`, `trip_id`, `route_id`, `trip_start_time`, `trip_start_date`, `vehicle_id`, `vehicle_label`, `license_plate`, `wheelchair_accessible`, `stop_sequence`, `arrival_delay_seconds`, `departure_delay_seconds`, `gps_timestamp`, `fetched_at`, `trip_schedule_relationship`, `stop_schedule_relationship`, `arrival_time`, `departure_time`, `feed_timestamp` |
-| `raw_alerts` | alerts DAG | `id`, `alert_id`, `content_hash`, `cause`, `effect`, `severity_level`, `header_text`, `description_text`, `url`, `active_period_start`, `active_period_end`, `informed_route_id`, `informed_stop_id`, `informed_trip_id`, `first_seen_at`, `last_seen_at`, `times_seen`, `fetched_at` |
+| `raw_vehicle_positions` | positions DAG | `id`, `vehicle_id`, `vehicle_label`, `route_id`, `trip_id`, `trip_start_time`, `trip_start_date`, `latitude`, `longitude`, `bearing`, `gps_timestamp`, `fetched_at`, `entity_id`, `trip_schedule_relationship`, `feed_timestamp` |
+| `raw_trip_updates` | trip-updates DAG | `id`, `trip_id`, `route_id`, `trip_start_time`, `trip_start_date`, `vehicle_id`, `vehicle_label`, `license_plate`, `wheelchair_accessible`, `stop_sequence`, `arrival_delay_seconds`, `departure_delay_seconds`, `gps_timestamp`, `fetched_at`, `trip_schedule_relationship`, `stop_schedule_relationship`, `arrival_time`, `departure_time`, `feed_timestamp`, `entity_id`, `scheduled_arrival_time` |
+| `raw_alerts` | alerts DAG | `id`, `alert_id`, `content_hash`, `cause`, `effect`, `severity_level`, `header_text`, `description_text`, `url`, `active_period_start`, `active_period_end`, `informed_route_id`, `informed_stop_id`, `informed_trip_id`, `first_seen_at`, `last_seen_at`, `times_seen`, `fetched_at`, `informed_agency_id`, `feed_timestamp` |
 | `raw_weather` | weather DAG | `id`, `observed_at`, `temperature_c`, `precipitation_mm`, `wind_speed_kmh`, `weather_code`, `fetched_at` |
-| `gtfs_*` (routes, stops, trips, stop_times, ...) | static GTFS DAG | the standard GTFS columns plus `loaded_at`; rebuilt daily |
-| `gtfs_trips_history` | static GTFS DAG | `trip_id`, `route_id`, `direction_id`, `trip_headsign`, `first_seen_at`, `last_seen_at`; never dropped |
-| `gtfs_routes_history` | static GTFS DAG | `route_id`, `agency_id`, `route_short_name`, `route_long_name`, `route_desc`, `route_type`, `route_url`, `route_color`, `route_text_color`, `first_seen_at`, `last_seen_at`; never dropped |
+| `gtfs_*` (every file in GTT's zip: routes, stops, trips, stop_times, shapes, calendar, agency, `vehicles`, `vehicle_categories`, timetables, fares, `feed_info`, ...) | static GTFS DAG | the columns of each file plus `loaded_at`; rebuilt daily |
+| `raw_feed_snapshots` | all three realtime DAGs | `id`, `feed`, `fetched_at`, `feed_timestamp`, `size_bytes`, `sha256`, `payload` (the gzip-compressed protobuf exactly as GTT sent it) |
+| `gtfs_stop_times_history`, `gtfs_shapes_history` | static GTFS DAG | every stop time and shape point ever published (`first_seen_at`); never dropped |
+| `gtfs_snapshot_history` | static GTFS DAG | every distinct row of the small reference tables (stops, vehicles, vehicle categories, calendar, feed_info, ...) as JSON, with `first_seen_at` / `last_seen_at` |
+| `gtfs_trips_history` | static GTFS DAG | `trip_id`, `route_id`, `direction_id`, `trip_headsign`, `service_id`, `trip_short_name`, `block_id`, `shape_id`, `wheelchair_accessible`, `bikes_allowed`, `limited_route`, `first_seen_at`, `last_seen_at`; never dropped |
+| `gtfs_routes_history` | static GTFS DAG | `route_id`, `agency_id`, `route_short_name`, `route_long_name`, `route_desc`, `route_type`, `route_url`, `route_color`, `route_text_color`, `route_sort_order`, `first_seen_at`, `last_seen_at`; never dropped |
 
 `trip_id` values are reused across service days, so a trip is identified by `trip_id` plus `trip_start_date`. The realtime `route_id` is empty in `raw_trip_updates`; it is resolved through `gtfs_trips_history`. Since 4 November 2026 a delay that GTT does not send is stored as `NULL`; earlier rows store the protobuf default `0` (see [Data quality notes](#data-quality-notes)). Trips without any stop update, such as cancelled ones, get one trip-level row.
 
@@ -138,7 +141,7 @@ Everything the feeds publish is stored. Timestamps are UTC; staging models add l
 | Model | Purpose |
 |---|---|
 | `stg_vehicle_positions` | Drops `(0,0)` GPS readings. Adds local time and `has_assigned_trip`. |
-| `stg_trip_updates` | Resolves `route_id` via the GTFS history. Adds prediction drift columns, `is_latest_observation` and `is_en_route`. |
+| `stg_trip_updates` | Resolves `route_id` via the GTFS history. Derives the delay of stops GTT reports as an absolute arrival time (`delay_source`), adds prediction drift columns, `is_latest_observation` and `is_en_route`. |
 | `stg_alerts` | Collapses alert/entity pairs, carries the observation window. |
 | `stg_weather` | Deduplicates per observation time. Translates WMO codes to conditions. |
 | `stg_gtfs_trips` | `trip_id` → route lookup built from `gtfs_trips_history`. |
@@ -220,7 +223,9 @@ That could not be proven from the data then, so the collector was changed on 4 N
 
 The live feed shows why: each stop update carries either `arrival.delay` or `arrival.time` (an absolute predicted arrival), never both (233 and 94 of 327 stop updates in one fetch, which is 28.7% again). The "zeros" were stop updates whose prediction was an absolute time that the collector did not read. Those times are not placeholders: converted to a delay against the timetable, they have a median of −64 s, 27.9% within ±60 s and only 0.2% exactly zero (`analysis/arrival_time_check.sql`), close to the rows that report a delay directly. A trip uses one form for all its stops (1,944 delay-only and 772 time-only trips in the latest 150,000 rows, none mixed), and some routes use only the time form (for example 49, 46, 76, 30, 43, 63 and 14).
 
-The consequence is a coverage gap: `fct_route_performance` still filters on `arrival_delay_seconds <> 0`, so it only sees trips that report a delay, and routes that publish only absolute times are missing or under-represented. Route-level rankings should be read with that in mind. The similar distribution of the two forms suggests the network-level figures are not materially biased, but that is not proven. Deriving the delay from `arrival_time` is the next change; delays before 4 November cannot be recovered because the time was not stored.
+Staging therefore computes `arrival_delay_seconds` as the reported delay or, for a time-form stop, the predicted arrival minus the scheduled one (`scheduled_arrival_time`, looked up in the current static GTFS at ingestion; every stop time is also kept in `gtfs_stop_times_history`). `delay_source` says which it was (`reported`, `derived_from_time` or `unknown`). A zero reported before 4 November 2026 14:50 UTC is treated as unknown; from then on it is a real on-time prediction. The marts keep every non-null delay.
+
+This only helps from 4 November on: the absolute time was not stored before, so those delays cannot be recovered, and routes that publish only absolute times have no data before that date. Route rankings need a few more weeks to become comparable across all lines; the snapshot below was taken before the change.
 
 ### First stop always reads zero
 The first stop reports zero delay because the vehicle has not departed. The `is_en_route` flag (`stop_sequence > 1`) excludes it.
@@ -246,7 +251,7 @@ Everything in this section is a **dated snapshot**. The dashboard above shows th
 
 ### Snapshot: 11 November 2026
 
-Data collected since **19 August 2026** (84 days), with one gap: `raw_trip_updates` is empty on 10–11 September. The route-level figures cover **4.84M delay observations on 99 routes**. Route attribution is incomplete for the earliest months, and routes whose trips report arrival times instead of delays are under-represented (see [Data quality notes](#data-quality-notes)), so read route rankings with care. Weather and fleet figures do not depend on route attribution.
+Data collected since **19 August 2026** (84 days), with one gap: `raw_trip_updates` is empty on 10–11 September. The route-level figures cover **4.84M delay observations on 99 routes**. Route attribution is incomplete for the earliest months, and routes whose trips report absolute arrival times instead of delays are missing or under-represented before 4 November (see [Data quality notes](#data-quality-notes)), so read route rankings with care. Weather and fleet figures do not depend on route attribution.
 
 ### Network-level punctuality vs European benchmarks
 
@@ -546,6 +551,10 @@ Cosmos does not install cleanly alongside Airflow 2.10.4 — pip enters dependen
 ### An `ALTER TABLE` that blocked everything
 
 The ingestion DAGs ran `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` on every run. Even when the column exists, Postgres takes an `ACCESS EXCLUSIVE` lock for it, which queues behind any long read and then blocks every other query on the table behind itself. One slow analytic query was enough to stall all ingestion and dbt. The DAGs now look the columns up in `information_schema` and only `ALTER` when one is missing. `dbt test` moved to its own DAG for a related reason: running it after every build kept the VM saturated.
+
+### Looking up the schedule when the data arrives
+
+To turn an absolute arrival time into a delay, the scheduled time of that stop is needed, and `gtfs_stop_times` is rebuilt every day with rotating `trip_id`s. The trip-updates DAG therefore reads the scheduled time at ingestion, while the `trip_id` is certainly in the current feed, and stores it next to the observation. If the lookup fails (the static tables are being rebuilt around midnight UTC) the value stays `NULL` and ingestion carries on.
 
 ### Protobuf cannot tell `0` from "not set"
 
