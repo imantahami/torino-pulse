@@ -61,6 +61,15 @@ models:
                 where: "fetched_at >= '2026-11-03'"
       - name: stop_sequence
         data_tests: [not_null]
+      - name: delay_source
+        description: >
+          Where arrival_delay_seconds comes from: 'reported' (GTT sent a delay),
+          'derived_from_time' (GTT sent an absolute arrival time; delay = predicted
+          minus scheduled) or 'unknown' (no usable delay, arrival_delay_seconds is null).
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['reported', 'derived_from_time', 'unknown']
       - name: is_latest_observation
         data_tests: [not_null]
       - name: observation_number
@@ -77,7 +86,7 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['route', 'stop', 'trip', 'unknown']
+              values: ['route', 'stop', 'trip', 'agency', 'unknown']
       - name: effect
         data_tests: [not_null]
 

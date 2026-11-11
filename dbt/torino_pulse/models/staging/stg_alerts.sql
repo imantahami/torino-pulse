@@ -13,6 +13,7 @@ with base as (
         nullif(informed_route_id, '') as route_id,
         nullif(informed_stop_id, '')  as stop_id,
         nullif(informed_trip_id, '')  as trip_id,
+        nullif(informed_agency_id, '') as agency_id,
         first_seen_at,
         last_seen_at,
         times_seen,
@@ -29,6 +30,7 @@ deduplicated as (
         route_id,
         stop_id,
         trip_id,
+        agency_id,
 
         min(cause)            as cause,
         min(effect)           as effect,
@@ -44,7 +46,7 @@ deduplicated as (
         sum(coalesce(times_seen, 1))             as times_observed
 
     from base
-    group by alert_id, route_id, stop_id, trip_id
+    group by alert_id, route_id, stop_id, trip_id, agency_id
 )
 
 select
@@ -59,6 +61,7 @@ select
     route_id,
     stop_id,
     trip_id,
+    agency_id,
 
     active_from,
     active_until,
@@ -77,6 +80,7 @@ select
         when route_id is not null then 'route'
         when stop_id  is not null then 'stop'
         when trip_id  is not null then 'trip'
+        when agency_id is not null then 'agency'
         else 'unknown'
     end as entity_type,
 

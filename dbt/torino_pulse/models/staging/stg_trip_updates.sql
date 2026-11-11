@@ -15,7 +15,33 @@ with base as (
             else null
         end as is_wheelchair_accessible,
         tu.stop_sequence,
-        tu.arrival_delay_seconds,
+
+        -- GTT sends each stop update with EITHER arrival.delay OR arrival.time (an
+        -- absolute predicted arrival), never both, and a whole trip uses one form.
+        -- The delay of a "time" stop is the predicted arrival minus the scheduled one
+        -- (scheduled_arrival_time is looked up at ingestion).
+        -- A reported delay of exactly 0 before the collector change is unknown: it was
+        -- the protobuf default for a missing field, and the time form was not stored.
+        case
+            when tu.arrival_delay_seconds is not null
+                 and not (tu.arrival_delay_seconds = 0
+                          and tu.fetched_at < '{{ var("delay_fix_cutover") }}'::timestamp)
+                then tu.arrival_delay_seconds
+            when tu.arrival_time is not null and tu.scheduled_arrival_time is not null
+                then (tu.arrival_time - tu.scheduled_arrival_time)::int
+        end as arrival_delay_seconds,
+        case
+            when tu.arrival_delay_seconds is not null
+                 and not (tu.arrival_delay_seconds = 0
+                          and tu.fetched_at < '{{ var("delay_fix_cutover") }}'::timestamp)
+                then 'reported'
+            when tu.arrival_time is not null and tu.scheduled_arrival_time is not null
+                then 'derived_from_time'
+            else 'unknown'
+        end as delay_source,
+        tu.arrival_time,
+        tu.scheduled_arrival_time,
+
         tu.departure_delay_seconds,
         to_timestamp(tu.gps_timestamp) at time zone 'UTC' as gps_reported_at,
         tu.fetched_at
@@ -69,6 +95,9 @@ select
     is_wheelchair_accessible,
     stop_sequence,
     arrival_delay_seconds,
+    delay_source,
+    arrival_time,
+    scheduled_arrival_time,
     departure_delay_seconds,
     previous_delay_seconds,
     first_delay_seconds,

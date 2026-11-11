@@ -7,10 +7,12 @@
 --      because the vehicle has not departed yet.
 --   2. is_latest_observation — each stop is predicted repeatedly as the
 --      trip progresses; the last prediction is the most accurate.
---   3. arrival_delay_seconds <> 0 — one third of trips report exactly
---      zero at *every* stop, uniformly across stop positions, and 80% of
---      vehicles are consistently in one group or the other. That pattern
---      fits missing data, not on-time performance. Treated as null.
+--   3. arrival_delay_seconds is not null — GTT sends each stop as either a delay
+--      or an absolute arrival time; staging turns the second form into a delay
+--      against the timetable. What stays null is a delay of exactly 0 recorded
+--      before 4 Nov 2026 14:50 UTC (it meant "no delay field", see
+--      stg_trip_updates) and stops with no usable prediction. From that moment a
+--      reported 0 is a real on-time prediction and is kept.
 
 with observations as (
     select
@@ -26,7 +28,7 @@ with observations as (
     from {{ ref('stg_trip_updates') }} tu
     where tu.is_en_route
       and tu.is_latest_observation
-      and tu.arrival_delay_seconds <> 0
+      and tu.arrival_delay_seconds is not null
 )
 
 select

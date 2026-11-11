@@ -118,18 +118,40 @@ for di, day in enumerate(DAYS):
                 if stop == 1:
                     d = 0
                 rows.append((uid, trip, "", "08:00:00", day.strftime("%Y%m%d"), "V1", "V1", "AA000AA", "2",
-                             stop, d, d, epoch(t), ts(t)))
+                             stop, d, d, epoch(t), ts(t), "", ""))
                 uid += 1
 # A trip no feed ever contained, seen before the history table existed (route stays null).
 for stop in range(1, 4):
     t = datetime(2026, 11, 2, 12, 0)
     rows.append((uid, "T_GHOST", "", "08:00:00", "20261102", "V9", "V9", "ZZ999ZZ", "3", stop, 60 * stop, 60 * stop,
-                 epoch(t), ts(t)))
+                 epoch(t), ts(t), "", ""))
     uid += 1
+
+# After the collector change (4 Nov 2026 14:50 UTC) a missing delay is stored as NULL and
+# GTT's absolute arrival time is kept. 5 Nov is the first service day after it.
+POST = datetime(2026, 11, 5)
+# T4A uses the "time" form: no delay, an absolute predicted arrival instead. The later
+# prediction (the one that should win) implies delays of 0, 25, 75 and 140 seconds.
+for pass_no, delays in enumerate(([0, 15, 60, 120], [0, 25, 75, 140])):
+    t = POST + timedelta(hours=9, minutes=30 * pass_no)
+    for stop in range(1, 5):
+        scheduled = epoch(POST + timedelta(hours=9, minutes=10 * stop))
+        rows.append((uid, "T4A", "", "08:00:00", "20261105", "V1", "V1", "AA000AA", "2", stop, "", "",
+                     epoch(t), ts(t), scheduled + delays[stop - 1], scheduled))
+        uid += 1
+# T55A reports a genuine 0 at every stop. Before the cutover that was ambiguous (T10A above
+# is excluded); after it, it is a real on-time prediction and must be kept.
+for pass_no in range(2):
+    t = POST + timedelta(hours=11, minutes=30 * pass_no)
+    for stop in range(1, 5):
+        rows.append((uid, "T55A", "", "08:00:00", "20261105", "V1", "V1", "AA000AA", "2", stop, 0, 0,
+                     epoch(t), ts(t), "", ""))
+        uid += 1
 write("raw_trip_updates",
       ["id", "trip_id", "route_id", "trip_start_time", "trip_start_date", "vehicle_id", "vehicle_label",
        "license_plate", "wheelchair_accessible", "stop_sequence", "arrival_delay_seconds",
-       "departure_delay_seconds", "gps_timestamp", "fetched_at"], rows)
+       "departure_delay_seconds", "gps_timestamp", "fetched_at", "arrival_time",
+       "scheduled_arrival_time"], rows)
 
 # ---- alerts ---------------------------------------------------------------
 far = epoch(datetime(2099, 1, 1))
@@ -147,9 +169,16 @@ rows = []
 for i, (aid, h, cause, eff, sev, head, rid, sid, end) in enumerate(alerts, start=1):
     seen = datetime(2026, 11, 3, 10, 0)
     rows.append((i, aid, h, cause, eff, sev, head, "", "", epoch(datetime(2026, 11, 1)), end, rid, sid, "",
-                 ts(seen), ts(seen + timedelta(hours=2)), 3, ts(seen)))
+                 ts(seen), ts(seen + timedelta(hours=2)), 3, ts(seen), ""))
+# An alert that names only agencies (no route, stop or trip), one row per agency.
+for j, agency in enumerate(("E", "F"), start=len(alerts) + 1):
+    seen = datetime(2026, 11, 3, 10, 0)
+    rows.append((j, "A9", "h9", "OTHER_CAUSE", "OTHER_EFFECT", "INFO", "Agency notice", "", "",
+                 epoch(datetime(2026, 11, 1)), far, "", "", "", ts(seen), ts(seen + timedelta(hours=2)), 3,
+                 ts(seen), agency))
 write("raw_alerts",
       ["id", "alert_id", "content_hash", "cause", "effect", "severity_level", "header_text", "description_text",
        "url", "active_period_start", "active_period_end", "informed_route_id", "informed_stop_id",
-       "informed_trip_id", "first_seen_at", "last_seen_at", "times_seen", "fetched_at"], rows)
+       "informed_trip_id", "first_seen_at", "last_seen_at", "times_seen", "fetched_at",
+       "informed_agency_id"], rows)
 print("seeds written to", OUT)

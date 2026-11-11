@@ -28,7 +28,7 @@ delays as (
     from {{ ref('stg_trip_updates') }}
     where is_en_route
       and is_latest_observation
-      and arrival_delay_seconds <> 0
+      and arrival_delay_seconds is not null
     group by 1
 ),
 

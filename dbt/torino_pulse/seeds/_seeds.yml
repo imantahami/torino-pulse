@@ -37,6 +37,8 @@ seeds:
         departure_delay_seconds: integer
         gps_timestamp: bigint
         fetched_at: timestamp
+        arrival_time: bigint
+        scheduled_arrival_time: bigint
 
   - name: raw_alerts
     config:
@@ -58,6 +60,7 @@ seeds:
         first_seen_at: timestamp
         last_seen_at: timestamp
         times_seen: integer
+        informed_agency_id: text
         fetched_at: timestamp
 
   - name: raw_weather

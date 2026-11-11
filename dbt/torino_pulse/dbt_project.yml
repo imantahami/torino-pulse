@@ -18,6 +18,13 @@ seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
+vars:
+  # The trip-updates DAG started storing NULL for a delay GTT does not send (and the
+  # absolute arrival_time) at this moment, UTC. A delay of exactly 0 before it is
+  # ambiguous: it was the protobuf default for "no delay field", so it is treated as
+  # unknown. From this moment on a 0 is a real on-time prediction.
+  delay_fix_cutover: '2026-11-04 14:50:05'
+
 clean-targets:         # directories to be removed by `dbt clean`
   - "target"
   - "dbt_packages"
