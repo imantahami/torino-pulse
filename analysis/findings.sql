@@ -51,6 +51,24 @@ order by route_mode;
 
 
 -- ============================================================
+-- 3b. One-sided punctuality by mode ("not late" thresholds, comparable with
+--     operators such as Hamburg HVV) plus the span of data behind each mode.
+--     A mode whose first/last observation dates are only a few days apart
+--     (metro, at the time of writing) must not be compared with the others.
+-- ============================================================
+select
+    route_mode,
+    sum(observations)                                                          as observations,
+    round(sum(pct_not_late_3min * observations) / sum(observations), 1)        as not_late_3min,
+    round(sum(pct_not_late_5min * observations) / sum(observations), 1)        as not_late_5min,
+    min(first_observed_at)::date                                               as first_observed,
+    max(last_observed_at)::date                                                as last_observed
+from fct_route_performance
+group by route_mode
+order by route_mode;
+
+
+-- ============================================================
 -- 4. Worst routes by pct_late (observations >= 200)
 -- ============================================================
 select route_short_name, pct_late, p90_delay_seconds, stddev_delay_seconds, observations
