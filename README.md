@@ -351,9 +351,18 @@ Across all alerts since collection began (3,141 distinct `alert_id`s in `stg_ale
 
 The `REDUCED_SERVICE` alerts are short-lived and almost none of them appears in `fct_alert_impact`, which only keeps alerts that name a route. That table holds 1,236 distinct alerts, of which 760 (61%) are detours; the headline share of detours therefore depends on which of the two views you use.
 
-Why detours happen, by the cause GTT reports (892 detour alerts): `OTHER_CAUSE` 501, `DEMONSTRATION` 221, `MAINTENANCE` 106, `CONSTRUCTION` 39, `ACCIDENT` 24, `POLICE_ACTIVITY` 1. About a quarter of detours are attributed to demonstrations. Among route-level alerts the most affected lines are tram 15 (53 alerts), the metro M1 and tram 4 (48 each). New alerts per month: 325 (from 19 Aug), 1,335 (Sep), 963 (Oct), 522 (1–11 Nov).
+Why detours happen, by the cause GTT reports (892 detour alerts): `OTHER_CAUSE` 501, `DEMONSTRATION` 221, `MAINTENANCE` 106, `CONSTRUCTION` 39, `ACCIDENT` 24, `POLICE_ACTIVITY` 1. About a quarter of detours carry the cause `DEMONSTRATION`, but GTT also uses it for city events (the busiest day, 22 September, includes a "Terra Madre Salone del Gusto" notice), so it does not mean protests only. Among route-level alerts the most affected lines are tram 15 (53 alerts), the metro M1 and tram 4 (48 each). New alerts per month: 325 (from 19 Aug), 1,335 (Sep), 963 (Oct), 522 (1–11 Nov).
 
 183 route-level alerts are active as of this snapshot, but that figure should be read with care: some alerts carry an end date years away, so open-ended notices count as active indefinitely.
+
+### Alert timing
+
+Times are local and mean when the collector first saw an alert (15-minute polling), not when GTT published it; alerts shorter than the polling interval can be missed.
+
+- **Time of day.** `REDUCED_SERVICE` alerts cluster in the rush hours and at midday: 62% first appear in the hours 07–08, 13–14 and 17–18, and almost none overnight. Detours are announced in the morning: 45% first appear between 06:00 and 10:00.
+- **Day of week.** `REDUCED_SERVICE` follows the amount of service on the road (about 6 new alerts per day on Sundays, 23–25 on Tuesday to Thursday). Detours are flatter, about 7–14 per day, highest on Friday and Saturday.
+- **One outlier day.** Thursday looks busiest, but a single day, 24 September, produced 246 alerts, 156 of them one-line notices naming individual lines (`10N`, `N10 Nightbuster`, `52`, `67 Festivo`, ...) first seen around 03:00. Without that day Thursday is in line with Tuesday and Wednesday, about 39 new alerts per day.
+- **Demonstration-cause alerts come in bursts.** One event produces one alert per affected line, so alert counts overstate events: 22 September has 24 alerts across about 20 lines in central Turin, and 30 October has 19 alerts with the same headline ("Manifestazione in centro citta'"). Friday and Saturday have more alerts per event day (about 9 and 7), but the number of days with at least one such alert is similar across weekdays (6–9 days each).
 
 ### Weather vs delay
 
