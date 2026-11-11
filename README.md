@@ -215,7 +215,11 @@ About 2.3% of vehicle positions report `latitude = 0, longitude = 0`. Filtered i
 ### A feed that emits `0` where it means "no data"
 Before 4 November 2026 about 33% of stop-time updates had `arrival_delay_seconds = 0`. Three checks suggested these were missing data rather than punctual arrivals: the zero rate was 31–34% at every stop position, 2,229 of 6,717 trips reported zero at every single stop, and 80% of vehicles sat firmly in one camp (always zero or never zero). `fct_route_performance` therefore excluded them.
 
-That could not be proven from the data then, so the collector was changed on 4 November 2026 to store a delay only when GTT actually sets the field (protobuf returns `0` for an unset integer, so the field presence is checked explicitly). On the rows collected since, **28.7% are `NULL` and only 0.1% are exactly zero** (`analysis/data_quality.sql`). The zeros were missing data, and the exclusion was right. The mart filter stays `arrival_delay_seconds <> 0`, which drops `NULL`s and the 0.1% genuine zeros alike, so older and newer data use one definition.
+That could not be proven from the data then, so the collector was changed on 4 November 2026 to store a delay only when GTT actually sets the field (protobuf returns `0` for an unset integer, so the field presence is checked explicitly). On the rows collected since, **28.7% are `NULL` and only 0.1% are exactly zero** (`analysis/data_quality.sql`).
+
+The live feed shows why: each stop update carries either `arrival.delay` or `arrival.time` (an absolute predicted arrival), never both (233 and 94 of 327 stop updates in one fetch, which is 28.7% again). The "zeros" were stop updates whose prediction was an absolute time that the collector did not read. Those times are not placeholders: converted to a delay against the timetable, they have a median of −64 s, 27.9% within ±60 s and only 0.2% exactly zero (`analysis/arrival_time_check.sql`), close to the rows that report a delay directly. A trip uses one form for all its stops (1,944 delay-only and 772 time-only trips in the latest 150,000 rows, none mixed), and some routes use only the time form (for example 49, 46, 76, 30, 43, 63 and 14).
+
+The consequence is a coverage gap: `fct_route_performance` still filters on `arrival_delay_seconds <> 0`, so it only sees trips that report a delay, and routes that publish only absolute times are missing or under-represented. Route-level rankings should be read with that in mind. The similar distribution of the two forms suggests the network-level figures are not materially biased, but that is not proven. Deriving the delay from `arrival_time` is the next change; delays before 4 November cannot be recovered because the time was not stored.
 
 ### First stop always reads zero
 The first stop reports zero delay because the vehicle has not departed. The `is_en_route` flag (`stop_sequence > 1`) excludes it.
@@ -241,7 +245,7 @@ Everything in this section is a **dated snapshot**. The dashboard above shows th
 
 ### Snapshot: 11 November 2026
 
-Data collected since **19 August 2026** (84 days), with one gap: `raw_trip_updates` is empty on 10–11 September. The route-level figures cover **4.84M delay observations on 99 routes**. Route attribution is incomplete for the earliest months (see [Data quality notes](#data-quality-notes)), so route rankings lean on recent weeks; network-level, weather and fleet figures do not depend on it.
+Data collected since **19 August 2026** (84 days), with one gap: `raw_trip_updates` is empty on 10–11 September. The route-level figures cover **4.84M delay observations on 99 routes**. Route attribution is incomplete for the earliest months (see [Data quality notes](#data-quality-notes)), Route attribution is incomplete for the earliest months, and routes whose trips report arrival times instead of delays are under-represented (see [Data quality notes](#data-quality-notes)), so read route rankings with care; network-level, weather and fleet figures do not depend on it.
 
 ### Network-level punctuality vs European benchmarks
 
