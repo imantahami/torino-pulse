@@ -51,3 +51,43 @@ where id > (select max(id) - 150000 from raw_trip_updates)
   and stop_sequence > 1
   and (arrival_delay_seconds is not null or arrival_time is not null)
 group by 1;
+
+-- Which routes use the "time" form? A route where (almost) every stop update is a
+-- "time" row would have been (almost) invisible in the route-level marts.
+-- Route names come from today's static GTFS, so only trips in the current feed match.
+with recent as (
+    select trip_id, arrival_delay_seconds is not null as is_delay
+    from raw_trip_updates
+    where id > (select max(id) - 150000 from raw_trip_updates)
+      and stop_sequence > 1
+      and (arrival_delay_seconds is not null or arrival_time is not null)
+)
+select r.route_short_name,
+       count(*)                                          as stop_updates,
+       round(100.0 * avg((not is_delay)::int), 1)        as pct_time_rows
+from recent
+join gtfs_trips  t on t.trip_id  = recent.trip_id
+join gtfs_routes r on r.route_id = t.route_id
+group by 1
+having count(*) >= 200
+order by pct_time_rows desc, stop_updates desc
+limit 15;
+
+-- Do trips mix both forms, or is a trip entirely one form?
+with per_trip as (
+    select trip_id, trip_start_date,
+           bool_or(arrival_delay_seconds is not null)                          as has_delay,
+           bool_or(arrival_delay_seconds is null and arrival_time is not null) as has_time
+    from raw_trip_updates
+    where id > (select max(id) - 150000 from raw_trip_updates)
+      and stop_sequence > 1
+    group by 1, 2
+)
+select case when has_delay and has_time then 'mixed'
+            when has_time               then 'time only'
+            when has_delay              then 'delay only'
+            else 'neither' end as trip_kind,
+       count(*) as trips
+from per_trip
+group by 1
+order by trips desc;
