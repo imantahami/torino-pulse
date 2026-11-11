@@ -47,14 +47,23 @@ def fetch_and_store_trip_updates():
             fetched_at TIMESTAMP
         )
     """)
-    cur.execute("""
-        ALTER TABLE raw_trip_updates
-            ADD COLUMN IF NOT EXISTS trip_schedule_relationship TEXT,
-            ADD COLUMN IF NOT EXISTS stop_schedule_relationship TEXT,
-            ADD COLUMN IF NOT EXISTS arrival_time BIGINT,
-            ADD COLUMN IF NOT EXISTS departure_time BIGINT,
-            ADD COLUMN IF NOT EXISTS feed_timestamp BIGINT
-    """)
+    # Only ALTER when a column is missing: even with IF NOT EXISTS, ALTER TABLE
+    # takes an ACCESS EXCLUSIVE lock, which queues behind long dbt queries and
+    # blocks every other reader and writer of the table.
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = 'raw_trip_updates'"
+    )
+    existing_columns = {row[0] for row in cur.fetchall()}
+    for col, coltype in [
+        ("trip_schedule_relationship", "TEXT"),
+        ("stop_schedule_relationship", "TEXT"),
+        ("arrival_time", "BIGINT"),
+        ("departure_time", "BIGINT"),
+        ("feed_timestamp", "BIGINT"),
+    ]:
+        if col not in existing_columns:
+            cur.execute(f"ALTER TABLE raw_trip_updates ADD COLUMN {col} {coltype}")
     conn.commit()
 
     url = "https://percorsieorari.gtt.to.it/das_gtfsrt/trip_update.aspx"
