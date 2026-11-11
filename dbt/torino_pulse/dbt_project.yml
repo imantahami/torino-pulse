@@ -33,3 +33,10 @@ models:
   torino_pulse:
     staging:
       +materialized: view
+
+# Fixture seeds exist only for CI. They share names with the raw tables, so
+# they are disabled for every target except `ci` to make sure `dbt seed` or
+# `dbt build` can never overwrite production data.
+seeds:
+  torino_pulse:
+    +enabled: "{{ target.name == 'ci' }}"

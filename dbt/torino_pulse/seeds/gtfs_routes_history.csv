@@ -1,0 +1,8 @@
+route_id,agency_id,route_short_name,route_long_name,route_desc,route_type,route_url,route_color,route_text_color,first_seen_at,last_seen_at
+4U,GTT,4,Falchera - Mirafiori,,0,,,,2026-11-03 03:00:00,2026-11-03 03:00:00
+10U,GTT,10,Vallette - Lingotto,,0,,,,2026-11-03 03:00:00,2026-11-03 03:00:00
+55U,GTT,55,Cimitero - Stazione,,3,,,,2026-11-03 03:00:00,2026-11-03 03:00:00
+17U,GTT,17,Corso Sicilia,,3,,,,2026-11-03 03:00:00,2026-11-03 03:00:00
+N1U,GTT,N1,Night line,,3,,,,2026-11-03 03:00:00,2026-11-03 03:00:00
+M1U,GTT,M1,Metro Fermi - Lingotto,,1,,,,2026-11-03 03:00:00,2026-11-03 03:00:00
+12E,GTT,12E,Extra-urban,,3,,,,2026-11-03 03:00:00,2026-11-03 03:00:00

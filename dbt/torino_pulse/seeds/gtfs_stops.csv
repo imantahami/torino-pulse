@@ -1,0 +1,7 @@
+stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,location_type,parent_station,stop_timezone,wheelchair_boarding,loaded_at
+S1,1,Stop 1,,45.01,7.61,,,0,,,1,2026-11-03 03:00:00
+S2,2,Stop 2,,45.02,7.62,,,0,,,2,2026-11-03 03:00:00
+S3,3,Stop 3,,45.03,7.63,,,0,,,1,2026-11-03 03:00:00
+S4,4,Stop 4,,45.04,7.64,,,0,,,2,2026-11-03 03:00:00
+S5,5,Stop 5,,45.05,7.65,,,0,,,1,2026-11-03 03:00:00
+S_BAD,9,No coordinates,,,,,,0,,,0,2026-11-03 03:00:00
